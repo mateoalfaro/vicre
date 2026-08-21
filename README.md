@@ -38,6 +38,7 @@ Y en algún módulo de la configuración:
   programs.vicre = {
     enable = true;
     user = "jafed";
+    # programs.vicre.systemd.enable = false;  # opt out of the autostart services
   };
 }
 ```
