@@ -56,9 +56,11 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 
 ```
 ~/.vicre/
-├── photos/    capturas PNG
-├── fuentes/   symlink a los PDFs dentro del paquete de Nix
-└── state.json última respuesta parseada
+├── photos/               capturas PNG
+├── fuentes/              symlink a los PDFs dentro del paquete de Nix
+├── opencode.json         agente "vicre" (sin bash/subagentes/task)
+├── vicre-agent-prompt.md prompt del agente
+└── state.json            última respuesta parseada
 ```
 
 ## CLI
