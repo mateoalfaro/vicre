@@ -21,13 +21,27 @@ in
       default = null;
       description = "User to add to the ydotool group.";
     };
+    systemd = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Set up vicre as systemd user services (autostarting daemon and
+          GNOME keybind applier). They are user units because the screenshot
+          portal and the session bus only exist inside the graphical session.
+          When disabled, only the package, ydotool and group membership are
+          configured; start `vicre daemon` yourself.
+        '';
+      };
+    };
   };
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable (lib.mkMerge [
       {
         programs.ydotool.enable = true;
-
+      }
+      (lib.mkIf cfg.systemd.enable {
         systemd.user.services.vicre = {
           description = "Vicre daemon";
           wantedBy = [ "graphical-session.target" ];
@@ -49,7 +63,7 @@ in
             ExecStart = "${cfg.package}/bin/vicre apply-keybinds";
           };
         };
-      }
+      })
       (lib.mkIf (cfg.user != null) {
         users.users.${cfg.user}.extraGroups = [ "ydotool" ];
       })
