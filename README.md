@@ -12,18 +12,29 @@ Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+i`, Vicre
 
 La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escritura usa `ydotool`/uinput. El éxito es silencioso; los errores llegan como notificación.
 
-## Instalación (NixOS)
+## Instalación (NixOS con flakes)
 
-En `/etc/nixos/configuration.nix`:
+Vicre solo se distribuye como flake. En tu `flake.nix`:
 
 ```nix
 {
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  inputs.vicre.url = "github:mateoalfaro/vicre";
 
-  imports = [
-    (builtins.getFlake "path:/home/jafed/devwork/vicre").nixosModules.default
-  ];
+  outputs = { self, nixpkgs, vicre, ... }: {
+    nixosConfigurations.mihost = nixpkgs.lib.nixosSystem {
+      modules = [
+        vicre.nixosModules.default
+        # ...
+      ];
+    };
+  };
+}
+```
 
+Y en algún módulo de la configuración:
+
+```nix
+{
   programs.vicre = {
     enable = true;
     user = "jafed";
@@ -31,7 +42,7 @@ En `/etc/nixos/configuration.nix`:
 }
 ```
 
-Luego `sudo nixos-rebuild switch` y **vuelve a iniciar sesión** (necesario para el grupo `ydotool`). Los atajos se registran solos al iniciar la sesión gráfica.
+Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión** (necesario para el grupo `ydotool`). Los atajos se registran solos al iniciar la sesión gráfica.
 
 ## Layout en runtime
 
