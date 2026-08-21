@@ -97,6 +97,8 @@ async def run_capture():
     global _active_proc
     try:
         uri = await asyncio.wait_for(portal.take_screenshot(), PORTAL_TIMEOUT)
+    except asyncio.CancelledError:
+        raise
     except asyncio.TimeoutError:
         notify.notify("la captura del portal agotó el tiempo de espera")
         return
@@ -116,6 +118,10 @@ async def run_capture():
     proc = await _launch_opencode(photo)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), OPENCODE_TIMEOUT)
+    except asyncio.CancelledError:
+        proc.kill()
+        await _wait_proc(proc)
+        raise
     except asyncio.TimeoutError:
         proc.kill()
         await _wait_proc(proc)

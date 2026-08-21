@@ -3,6 +3,8 @@ import os
 
 from vicre import flow
 
+_capture_task = None
+
 
 def _socket_path():
     runtime = os.environ.get("XDG_RUNTIME_DIR")
@@ -20,8 +22,15 @@ async def _handle_client(reader, writer):
     writer.write(b"ok\n")
     await writer.drain()
     writer.close()
+    global _capture_task
     if line.strip() == b"capture":
-        asyncio.create_task(flow.run_capture())
+        if _capture_task is not None and not _capture_task.done():
+            _capture_task.cancel()
+            try:
+                await _capture_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        _capture_task = asyncio.create_task(flow.run_capture())
 
 
 async def main():
