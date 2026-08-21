@@ -21,6 +21,16 @@ in
       default = null;
       description = "User to add to the ydotool group.";
     };
+    model = lib.mkOption {
+      type = lib.types.str;
+      default = "openai/gpt-5.6-terra";
+      description = "Model (provider/model) that vicre uses for the consulta. Must support image input.";
+    };
+    variant = lib.mkOption {
+      type = lib.types.str;
+      default = "xhigh";
+      description = "Reasoning variant passed to opencode run --variant.";
+    };
     systemd = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -52,6 +62,10 @@ in
             Type = "simple";
             ExecStart = "${cfg.package}/bin/vicre daemon";
             Restart = "on-failure";
+            Environment = [
+              "VICRE_MODEL=${cfg.model}"
+              "VICRE_VARIANT=${cfg.variant}"
+            ];
           };
         };
 

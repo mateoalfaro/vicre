@@ -13,7 +13,7 @@ Captura de pantalla completa (todos los monitores) tomada al activar el atajo de
 _Avoid_: screenshot, foto suelta
 
 **Acciones**:
-Los tres atajos globales: **Capturar** (`ctrl+i`, inicia la Consulta), **Pegar respuesta** (`ctrl+o`, escribe la Respuesta Tipo 1) y **Pegar código** (`ctrl+p`, escribe la Respuesta Tipo 2).
+Los tres atajos globales: **Capturar** (`ctrl+alt+i`, inicia la Consulta), **Pegar respuesta** (`ctrl+alt+o`, escribe la Respuesta Tipo 1) y **Pegar código** (`ctrl+alt+p`, escribe la Respuesta Tipo 2).
 _Avoid_: comandos, hotkeys
 
 **Consulta**:

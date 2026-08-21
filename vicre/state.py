@@ -15,6 +15,13 @@ def read_state():
     return data
 
 
+def clear_state():
+    try:
+        os.remove(STATE_FILE)
+    except FileNotFoundError:
+        pass
+
+
 def write_state(tipo1, tipo2, photo, captured_at):
     data = {"tipo1": tipo1, "tipo2": tipo2, "photo": photo, "captured_at": captured_at}
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)

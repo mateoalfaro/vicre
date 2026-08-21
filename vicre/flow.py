@@ -11,6 +11,8 @@ PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
 OPENCODE_TIMEOUT = 900.0
+MODEL = os.environ.get("VICRE_MODEL", "openai/gpt-5.6-terra")
+VARIANT = os.environ.get("VICRE_VARIANT", "xhigh")
 
 M1 = "RESPUESTA_TIPO1"
 M2 = "RESPUESTA_TIPO2"
@@ -33,7 +35,7 @@ def save_photo(uri):
         raise _FlowError(f"uri inesperada: {parsed.scheme}")
     if not os.path.isfile(src):
         raise _FlowError("el archivo de la captura no existe")
-    name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + ".png"
+    name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".png"
     dst = os.path.join(PHOTOS_DIR, name)
     shutil.copyfile(src, dst)
     return dst
@@ -83,7 +85,8 @@ async def _launch_opencode(photo):
         prev.terminate()
         await _wait_proc(prev)
     proc = await asyncio.create_subprocess_exec(
-        "opencode", "run", prompt.build_prompt(photo),
+        "opencode", "run", prompt.build_prompt(), "-f", photo,
+        "--model", MODEL, "--variant", VARIANT,
         cwd=HOME_DIR,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
@@ -94,6 +97,7 @@ async def _launch_opencode(photo):
 
 
 async def run_capture():
+    state.clear_state()
     global _active_proc
     try:
         uri = await asyncio.wait_for(portal.take_screenshot(), PORTAL_TIMEOUT)

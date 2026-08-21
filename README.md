@@ -1,14 +1,14 @@
 # Vicre
 
-Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+i`, Vicre le pregunta a OpenCode usando los PDFs del curso (`fuentes/`), y luego escribe la respuesta directamente en la ventana enfocada.
+Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando los PDFs del curso (`fuentes/`), y luego escribe la respuesta directamente en la ventana enfocada.
 
 ## Atajos
 
 | Atajo | Acción |
 |---|---|
-| `ctrl+i` | Captura toda la pantalla → consulta a OpenCode → guarda las dos respuestas |
-| `ctrl+o` | Escribe la **Respuesta Tipo 1** (respuestas directas) donde esté escribiendo |
-| `ctrl+p` | Escribe la **Respuesta Tipo 2** (código Wolfram de verificación) |
+| `ctrl+alt+i` | Captura toda la pantalla → consulta a OpenCode → guarda las dos respuestas |
+| `ctrl+alt+o` | Escribe la **Respuesta Tipo 1** (respuestas directas) donde esté escribiendo |
+| `ctrl+alt+p` | Escribe la **Respuesta Tipo 2** (código Wolfram de verificación) |
 
 La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escritura usa `ydotool`/uinput. El éxito es silencioso; los errores llegan como notificación.
 
@@ -39,9 +39,16 @@ Y en algún módulo de la configuración:
     enable = true;
     user = "jafed";
     # programs.vicre.systemd.enable = false;  # opt out of the autostart services
+    # model = "openai/gpt-5.6-terra";  # vision model for the consulta (default)
+    # variant = "xhigh";               # reasoning effort for that model
   };
 }
 ```
+
+El modelo debe soportar imágenes; las credenciales del proveedor se leen
+del archivo de auth de OpenCode (`opencode auth login`). Para probar otro
+modelo sin tocar la configuración, usa `VICRE_MODEL` y `VICRE_VARIANT` en
+el entorno del daemon.
 
 Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión** (necesario para el grupo `ydotool`). Los atajos se registran solos al iniciar la sesión gráfica.
 
