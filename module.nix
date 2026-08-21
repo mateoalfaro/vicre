@@ -40,6 +40,7 @@ in
     (lib.mkIf cfg.enable (lib.mkMerge [
       {
         programs.ydotool.enable = true;
+        environment.systemPackages = [ cfg.package ];
       }
       (lib.mkIf cfg.systemd.enable {
         systemd.user.services.vicre = {

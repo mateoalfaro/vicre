@@ -1,4 +1,5 @@
 import ast
+import os
 import subprocess
 
 SCHEMA = "org.gnome.settings-daemon.plugins.media-keys"
@@ -8,7 +9,8 @@ BASE = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/"
 TAILS = ["vicre0/", "vicre1/", "vicre2/"]
 NAMES = ["Vicre Capturar", "Vicre Pegar respuesta", "Vicre Pegar código"]
 BINDINGS = ["<Ctrl>i", "<Ctrl>o", "<Ctrl>p"]
-COMMANDS = ["vicre capture", "vicre paste1", "vicre paste2"]
+VICRE_BIN = os.environ.get("VICRE_BIN", "vicre")
+COMMANDS = [f"{VICRE_BIN} capture", f"{VICRE_BIN} paste1", f"{VICRE_BIN} paste2"]
 
 
 def _run(*args):

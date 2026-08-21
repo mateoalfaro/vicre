@@ -38,6 +38,7 @@ python3Packages.buildPythonApplication {
       --prefix PYTHONPATH : "${pythonPath}" \
       --prefix PYTHONPATH : "$site" \
       --set VICRE_FUENTES_DIR "$out/share/vicre/fuentes" \
+      --set VICRE_BIN "$out/bin/vicre" \
       --prefix PATH : "${lib.makeBinPath [ opencode ydotool libnotify glib ]}" \
       --add-flags "-m vicre.__main__"
 
