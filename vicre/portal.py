@@ -7,6 +7,13 @@ from dbus_next import BusType, Variant
 PORTAL_BUS = "org.freedesktop.portal.Desktop"
 PORTAL_PATH = "/org/freedesktop/portal/desktop"
 REQUEST_IFACE = "org.freedesktop.portal.Request"
+SCREENSHOT_IFACE = "org.freedesktop.portal.Screenshot"
+SCREENSHOT_XML = ('<node><interface name="org.freedesktop.portal.Screenshot">'
+                  '<method name="Screenshot">'
+                  '<arg direction="in" type="s" name="parent_window"/>'
+                  '<arg direction="in" type="a{sv}" name="options"/>'
+                  '<arg direction="out" type="o" name="handle"/>'
+                  '</method></interface></node>')
 REQUEST_XML = ('<node><interface name="org.freedesktop.portal.Request">'
                '<signal name="Response"><arg type="u" name="response"/>'
                '<arg type="a{sv}" name="results"/></signal></interface></node>')
@@ -24,9 +31,8 @@ def _predicted_handle(token, unique_name):
 async def _request_uri(bus):
     token = "vicre_" + uuid.uuid4().hex
     handle = _predicted_handle(token, bus.unique_name)
-    portal_node = await bus.introspect(PORTAL_BUS, PORTAL_PATH)
-    portal_proxy = bus.get_proxy_object(PORTAL_BUS, PORTAL_PATH, portal_node)
-    screenshot = portal_proxy.get_interface("org.freedesktop.portal.Screenshot")
+    portal_proxy = bus.get_proxy_object(PORTAL_BUS, PORTAL_PATH, SCREENSHOT_XML)
+    screenshot = portal_proxy.get_interface(SCREENSHOT_IFACE)
     request_proxy = bus.get_proxy_object(PORTAL_BUS, handle, REQUEST_XML)
     request_iface = request_proxy.get_interface(REQUEST_IFACE)
     loop = asyncio.get_running_loop()
@@ -36,12 +42,12 @@ async def _request_uri(bus):
         if not done.done():
             done.set_result((code, results))
 
-    request_iface.on_response = on_response
+    request_iface.on_response(on_response)
     reply = await screenshot.call_screenshot("", {"handle_token": Variant("s", token)})
     actual = reply if isinstance(reply, str) else reply[0]
     if actual != handle:
         extra = bus.get_proxy_object(PORTAL_BUS, actual, REQUEST_XML)
-        extra.get_interface(REQUEST_IFACE).on_response = on_response
+        extra.get_interface(REQUEST_IFACE).on_response(on_response)
     code, results = await done
     if code != 0:
         raise PortalError(f"el portal respondió con código {code}")
