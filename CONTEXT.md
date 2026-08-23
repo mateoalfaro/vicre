@@ -29,7 +29,9 @@ Código Wolfram Mathematica que verifica los resultados de la Respuesta Tipo 1, 
 _Avoid_: código de verificación, script
 
 **Fuentes**:
-Los PDFs del curso (capítulos y compilaciones de exámenes) que viajan dentro del paquete de Vicre y se exponen en `~/.vicre/fuentes` para que OpenCode los consulte.
+Tarjetas Markdown compactas de procedimiento que viajan dentro del paquete de
+Vicre y se exponen en `~/.vicre/fuentes` para que OpenCode las consulte. El
+runtime no contiene preguntas, claves, rúbricas ni PDFs de evaluación.
 _Avoid_: biblioteca, documentos
 
 **Directorio de trabajo**:

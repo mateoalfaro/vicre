@@ -22,8 +22,10 @@ def clear_state():
         pass
 
 
-def write_state(tipo1, tipo2, photo, captured_at):
+def write_state(tipo1, tipo2, photo, captured_at, procedures=None):
     data = {"tipo1": tipo1, "tipo2": tipo2, "photo": photo, "captured_at": captured_at}
+    if procedures is not None:
+        data["procedures"] = list(procedures)
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     tmp = STATE_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

@@ -3,6 +3,7 @@
   python3Packages,
   makeWrapper,
   opencode,
+  tesseract,
   ydotool,
   libnotify,
   glib,
@@ -14,17 +15,42 @@ let
     python
     python3Packages.dbus-next
   ];
+  sourceFiles = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./flake.lock
+      ./flake.nix
+      ./module.nix
+      ./package.nix
+      ./tests
+      ./vicre
+      ./fuentes/runtime
+    ];
+  };
+  tesseractCourse = tesseract.override {
+    enableLanguages = [
+      "eng"
+      "spa"
+    ];
+  };
 in
 python3Packages.buildPythonApplication {
   pname = "vicre";
   version = "0.1.0";
   format = "other";
 
-  src = ./.;
+  src = sourceFiles;
 
   propagatedBuildInputs = [ python3Packages.dbus-next ];
 
   nativeBuildInputs = [ makeWrapper ];
+
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    ${python.interpreter} -m unittest discover -s tests -v
+    runHook postCheck
+  '';
 
   dontWrapPythonPrograms = true;
 
@@ -39,15 +65,16 @@ python3Packages.buildPythonApplication {
       --prefix PYTHONPATH : "$site" \
       --set VICRE_FUENTES_DIR "$out/share/vicre/fuentes" \
       --set VICRE_BIN "$out/bin/vicre" \
-      --prefix PATH : "${lib.makeBinPath [ opencode ydotool libnotify glib ]}" \
+      --prefix PATH : "${lib.makeBinPath [ opencode tesseractCourse ydotool libnotify glib ]}" \
       --add-flags "-m vicre.__main__"
 
     mkdir -p "$out/share/vicre"
-    cp -r fuentes "$out/share/vicre/fuentes"
+    mkdir -p "$out/share/vicre/fuentes"
+    cp -r fuentes/runtime/. "$out/share/vicre/fuentes/"
   '';
 
   meta = {
-    description = "Screen-capture assistant that queries OpenCode using bundled course PDFs";
+    description = "Screen-capture assistant that queries OpenCode using compact runtime procedure cards";
     mainProgram = "vicre";
     platforms = lib.platforms.linux;
   };

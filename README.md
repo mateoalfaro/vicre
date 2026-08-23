@@ -1,6 +1,6 @@
 # Vicre
 
-Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando los PDFs del curso (`fuentes/`), y luego escribe la respuesta directamente en la ventana enfocada.
+Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando tarjetas Markdown compactas del curso (`fuentes/`), y luego escribe la respuesta directamente en la ventana enfocada.
 
 ## Atajos
 
@@ -57,11 +57,15 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 ```
 ~/.vicre/
 ├── photos/               capturas PNG
-├── fuentes/              symlink a los PDFs dentro del paquete de Nix
+├── fuentes/              symlink a tarjetas Markdown compactas dentro del paquete de Nix
 ├── opencode.json         agente "vicre" (sin bash/subagentes/task)
 ├── vicre-agent-prompt.md prompt del agente
 └── state.json            última respuesta parseada
 ```
+
+El runtime solo contiene las tarjetas abstractas de `fuentes/runtime/`. Las
+preguntas, claves, rúbricas y PDFs de evaluación no se incluyen en el paquete
+ni se exponen al agente.
 
 ## CLI
 

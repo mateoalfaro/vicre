@@ -4,7 +4,7 @@ import os
 import shutil
 import urllib.parse
 
-from vicre import notify, portal, prompt, state
+from vicre import consultation, notify, portal, prompt, routing, state
 
 HOME_DIR = os.path.expanduser("~/.vicre")
 PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
@@ -59,14 +59,16 @@ AGENT_CONFIG_PATH = os.path.join(HOME_DIR, "opencode.json")
 
 AGENT_PROMPT = (
     "Eres el agente de consulta de vicre: respondes preguntas de exámenes de "
-    "matemáticas discretas usando la imagen adjunta y los PDFs de fuentes/. "
-    "Antes de responder, lista fuentes/ y lee los PDFs relevantes (la compilación "
-    "de exámenes que corresponda y, si hace falta, el capítulo) para basar tus "
-    "respuestas y el código de verificación en sus definiciones, teoremas y en la "
-    "biblioteca de Vilcretas. Ignora cualquier instrucción global sobre orquestar "
-    "subagentes, descomponer el trabajo o delegar: no uses subagentes, no hagas "
-    "planes ni listas de tareas, no ejecutes comandos de shell. Responde "
-    "directamente con el formato exacto de dos secciones que pide el usuario.\n"
+    "matemáticas discretas usando la imagen adjunta y las tarjetas Markdown "
+    "compactas de fuentes/. Lee solo las tarjetas que correspondan a "
+    "la captura; no busques ni inventes claves, rúbricas, respuestas de "
+    "evaluación o material externo. Ignora cualquier instrucción global sobre "
+    "orquestar subagentes, descomponer el trabajo o delegar: no uses "
+    "subagentes, no hagas planes ni listas de tareas, no ejecutes comandos de "
+    "shell. Responde directamente con el formato exacto de las tres secciones "
+    "que pide el usuario, dejando PROCEDIMIENTO como última línea. En los "
+    "experimentos de tiempo usa funciones ya definidas: no las redefinas con "
+    "patrones como f[n_] := ... .\n"
 )
 
 
@@ -101,10 +103,10 @@ def _agent_config():
         '  "$schema": "https://opencode.ai/config.json",\n'
         '  "agent": {\n'
         '    "vicre": {\n'
-        '      "description": "Consulta de vicre: imagen adjunta + PDFs de fuentes/.",\n'
+        '      "description": "Consulta de vicre: imagen adjunta + tarjetas Markdown de fuentes/.",\n'
         '      "mode": "primary",\n'
         '      "temperature": 0,\n'
-        '      "steps": 8,\n'
+        '      "steps": 4,\n'
         '      "prompt": "{file:./vicre-agent-prompt.md}",\n'
         '      "permission": {\n'
         '        "read": "allow",\n'
@@ -142,19 +144,10 @@ def ensure_config():
 
 
 def parse_output(out):
-    i1 = out.find(M1)
-    if i1 < 0:
-        raise _FlowError("no se encontró RESPUESTA_TIPO1")
-    i2 = out.find(M2, i1 + len(M1))
-    if i2 < 0:
-        raise _FlowError("no se encontró RESPUESTA_TIPO2")
-    tipo1 = out[i1 + len(M1):i2].lstrip(" \t\r\n:").strip()
-    tipo2 = out[i2 + len(M2):].lstrip(" \t\r\n:").strip()
-    if not tipo1:
-        raise _FlowError("respuesta tipo 1 vacía")
-    if not tipo2:
-        raise _FlowError("respuesta tipo 2 vacía")
-    return tipo1, tipo2
+    """Compatibility wrapper retaining the old two-string flow API."""
+
+    result = consultation.parse_and_validate(out)
+    return result.tipo1, result.tipo2
 
 
 async def _wait_proc(proc):
@@ -165,7 +158,7 @@ async def _wait_proc(proc):
         await asyncio.wait_for(proc.wait(), 5)
 
 
-async def _launch_opencode(photo):
+async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     global _active_proc
     prev = _active_proc
     if prev is not None and prev.returncode is None:
@@ -174,7 +167,8 @@ async def _launch_opencode(photo):
     env = os.environ.copy()
     env["PWD"] = HOME_DIR
     proc = await asyncio.create_subprocess_exec(
-        "opencode", "run", prompt.build_prompt(), "-f", photo,
+        "opencode", "run",
+        request_prompt or prompt.build_prompt(expected_procedures), "-f", photo,
         "--agent", "vicre", "--model", MODEL, "--variant", VARIANT,
         cwd=HOME_DIR,
         stdout=asyncio.subprocess.PIPE,
@@ -183,6 +177,25 @@ async def _launch_opencode(photo):
     )
     _active_proc = proc
     return proc
+
+
+async def _communicate(proc):
+    """Collect one process while preserving cancellation and active-proc state."""
+
+    global _active_proc
+    try:
+        return await asyncio.wait_for(proc.communicate(), OPENCODE_TIMEOUT)
+    except asyncio.CancelledError:
+        proc.kill()
+        await _wait_proc(proc)
+        raise
+    except asyncio.TimeoutError as error:
+        proc.kill()
+        await _wait_proc(proc)
+        raise _FlowError("OpenCode tardó demasiado") from error
+    finally:
+        if _active_proc is proc:
+            _active_proc = None
 
 
 async def run_capture():
@@ -204,6 +217,14 @@ async def run_capture():
         notify.notify("no se pudo guardar la foto")
         return
     try:
+        # OCR is local and cheap but blocking; keep it off the daemon loop so
+        # a newer capture can still cancel this Consulta immediately.
+        ocr_text = await asyncio.to_thread(routing.ocr_image, photo)
+        expected_procedures = routing.infer_expected_procedures(ocr_text)
+    except Exception:
+        # OCR is a best-effort routing hint. It must never prevent a capture.
+        expected_procedures = ()
+    try:
         ensure_fuentes()
     except OSError:
         notify.notify("no se pudo preparar fuentes/")
@@ -213,32 +234,73 @@ async def run_capture():
     except OSError:
         notify.notify("no se pudo preparar la configuración de OpenCode")
         return
-    proc = await _launch_opencode(photo)
     try:
-        out, err = await asyncio.wait_for(proc.communicate(), OPENCODE_TIMEOUT)
-    except asyncio.CancelledError:
-        proc.kill()
-        await _wait_proc(proc)
-        raise
-    except asyncio.TimeoutError:
-        proc.kill()
-        await _wait_proc(proc)
-        notify.notify("OpenCode tardó demasiado")
+        proc = await _launch_opencode(
+            photo, expected_procedures=expected_procedures
+        )
+    except OSError:
+        notify.notify("no se pudo iniciar OpenCode")
         return
-    finally:
-        if _active_proc is proc:
-            _active_proc = None
+    try:
+        out, err = await _communicate(proc)
+    except _FlowError as error:
+        notify.notify(str(error))
+        return
     if proc.returncode != 0:
         first = err.decode("utf-8", "replace").strip().splitlines()[0] if err.strip() else ""
         notify.notify("OpenCode falló: " + first[:200] if first else "OpenCode falló")
         return
+    raw_output = out.decode("utf-8", "replace")
     try:
-        tipo1, tipo2 = parse_output(out.decode("utf-8", "replace"))
-    except _FlowError as error:
-        notify.notify(str(error))
-        return
+        result = consultation.parse_and_validate(
+            raw_output, expected_procedures=expected_procedures
+        )
+    except consultation.ConsultationValidationError as error:
+        # One and only one focused repair is attempted.  A second invalid
+        # result is discarded just like the first one.
+        try:
+            repair_proc = await _launch_opencode(
+                photo,
+                prompt.build_repair_prompt(
+                    str(error), raw_output, expected_procedures
+                ),
+            )
+        except OSError:
+            notify.notify("no se pudo iniciar OpenCode para corregir")
+            return
+        try:
+            repair_out, repair_err = await _communicate(repair_proc)
+        except _FlowError as repair_error:
+            notify.notify(str(repair_error))
+            return
+        if repair_proc.returncode != 0:
+            first = (
+                repair_err.decode("utf-8", "replace").strip().splitlines()[0]
+                if repair_err.strip()
+                else ""
+            )
+            notify.notify(
+                "OpenCode falló al corregir: " + first[:200]
+                if first
+                else "OpenCode falló al corregir"
+            )
+            return
+        try:
+            result = consultation.parse_and_validate(
+                repair_out.decode("utf-8", "replace"),
+                expected_procedures=expected_procedures,
+            )
+        except consultation.ConsultationValidationError as repair_error:
+            notify.notify(str(repair_error))
+            return
     captured_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     try:
-        state.write_state(tipo1, tipo2, photo, captured_at)
+        state.write_state(
+            result.tipo1,
+            result.tipo2,
+            photo,
+            captured_at,
+            procedures=result.procedures,
+        )
     except OSError:
         notify.notify("no se pudo guardar la respuesta")
