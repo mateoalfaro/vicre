@@ -11,8 +11,8 @@ PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
 OPENCODE_TIMEOUT = 900.0
-MODEL = os.environ.get("VICRE_MODEL", "openai/gpt-5.6-terra")
-VARIANT = os.environ.get("VICRE_VARIANT", "xhigh")
+MODEL = os.environ.get("VICRE_MODEL", "openai/gpt-5.6-sol")
+VARIANT = os.environ.get("VICRE_VARIANT", "medium")
 
 M1 = "RESPUESTA_TIPO1"
 M2 = "RESPUESTA_TIPO2"
