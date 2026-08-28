@@ -172,10 +172,17 @@ class AgentConfigTests(unittest.TestCase):
         self.assertIn('"grep": "allow"', config)
 
     def test_agent_prompt_mentions_index_when_available(self):
-        with mock.patch.dict(
-            "os.environ", {"VICRE_FUENTES_DIR": "/tmp/opencode/fuentes-out"}
-        ):
-            prompt = flow._agent_prompt()
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as fuentes:
+            for name in ("INDICE.md", "funciones-vilcretas.txt"):
+                with open(os.path.join(fuentes, name), "w") as f:
+                    f.write("x")
+            with mock.patch.dict(
+                "os.environ", {"VICRE_FUENTES_DIR": fuentes}
+            ):
+                prompt = flow._agent_prompt()
 
         self.assertIn("INDICE.md", prompt)
         self.assertIn("funciones-vilcretas.txt", prompt)
