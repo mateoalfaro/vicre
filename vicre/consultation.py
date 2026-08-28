@@ -68,17 +68,18 @@ class ConsultationResult:
         yield self.tipo2
 
 
-# The names and required Wolfram constructs are intentionally compact.  The
-# model receives the explanations in fuentes/runtime; this table is the
+# The chapter IDs are the routing vocabulary of the master cuadernillo.  The
+# model receives the navigation material in fuentes; this table is the
 # executable policy at the result seam.
-PROCEDURE_REQUIREMENTS = {
-    "timing_repeated": ("Table", "RepeatedTiming", "ListLinePlot"),
-    "timing_graphica": ("PruebaADAGrafica",),
-    "asymptotic_sum": ("Sum", "Limit"),
-    "asymptotic_product": ("Product", "Limit"),
-    "comp_limit": ("CompLimit",),
-    "loop_count": ("Sum",),
-    "numeric_compare": ("__numeric_evaluation__",),
+CHAPTERS = {
+    "cap1": "Recursividad",
+    "cap2": "Relaciones de recurrencia",
+    "cap3": "Análisis de algoritmos",
+    "cap4": "Relaciones binarias",
+    "cap5": "Teoría de grafos",
+    "cap6": "Teoría de árboles",
+    "cap7": "Máquinas de estado finito y autómatas",
+    "cap8": "Lenguajes y gramáticas",
 }
 
 _SECTION_RE = re.compile(
@@ -104,33 +105,6 @@ _PLAIN_PROSE_RE = re.compile(
 )
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]*$", re.IGNORECASE)
 _CALL_RE = re.compile(r"(?<![A-Za-z0-9_$])([A-Za-z$][A-Za-z0-9_$]*)[ \t]*\[")
-_NUMBER_RE = re.compile(r"(?<![A-Za-z])(?:\d+(?:\.\d*)?|\.\d+)(?![A-Za-z])")
-
-# These calls are structural operations, not evidence that the response
-# evaluated a concrete input.  In particular, excluding PruebaADAGrafica is
-# important when numeric_compare and timing_graphica are declared together.
-_STRUCTURAL_CALLS = {
-    "table",
-    "repeatedtiming",
-    "listlineplot",
-    "pruebaadagrafica",
-    "sum",
-    "limit",
-    "product",
-    "complimit",
-    "findsequencefunction",
-    "module",
-    "if",
-    "which",
-    "for",
-    "while",
-    "total",
-    "integerdigits",
-    "select",
-    "clear",
-    "return",
-    "expand",
-}
 
 
 def _section_positions(output: str) -> tuple[re.Match[str], re.Match[str]]:
@@ -167,12 +141,12 @@ def _procedure_ids(marker_value: str) -> tuple[str, ...]:
         procedure_id = raw_id.casefold()
         if not _ID_RE.fullmatch(raw_id):
             raise ConsultationValidationError(
-                f"ID de procedimiento inválido: {raw_id!r}"
+                f"ID de capítulo inválido: {raw_id!r}"
             )
-        if procedure_id not in PROCEDURE_REQUIREMENTS:
-            known = ", ".join(sorted(PROCEDURE_REQUIREMENTS))
+        if procedure_id not in CHAPTERS:
+            known = ", ".join(CHAPTERS)
             raise ConsultationValidationError(
-                f"procedimiento desconocido: {raw_id}; IDs válidos: {known}"
+                f"capítulo desconocido: {raw_id}; IDs válidos: {known}"
             )
         if procedure_id not in result:
             result.append(procedure_id)
@@ -189,40 +163,6 @@ def _strip_one_code_fence(tipo2: str) -> str:
             "RESPUESTA_TIPO2 contiene fences de código adicionales"
         )
     return value
-
-
-def _bracket_body(source: str, opening: int) -> str:
-    """Return the text inside a Wolfram call's opening bracket."""
-
-    body, _ = _bracket_body_with_end(source, opening)
-    return body
-
-
-def _bracket_body_with_end(source: str, opening: int) -> tuple[str, int | None]:
-    """Return a call body and its closing bracket offset, when balanced."""
-
-    depth = 0
-    in_string = False
-    escaped = False
-    for index in range(opening, len(source)):
-        char = source[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "[":
-            depth += 1
-        elif char == "]":
-            depth -= 1
-            if depth == 0:
-                return source[opening + 1:index], index
-    return source[opening + 1:], None
 
 
 def _sanitize_wolfram(source: str) -> str:
@@ -285,49 +225,6 @@ def _without_wolfram_comments(source: str) -> str:
     return _sanitize_wolfram(source)
 
 
-def _call_records(code: str):
-    """Yield actual balanced Wolfram calls, excluding ``expr[[part]]``."""
-
-    sanitized = _sanitize_wolfram(code)
-    for match in _CALL_RE.finditer(sanitized):
-        opening = match.end() - 1
-        after_opening = sanitized[opening + 1:]
-        if after_opening.lstrip().startswith("["):
-            # ``data[[1]]`` is a Part expression, not a call to ``data``.
-            continue
-        body, closing = _bracket_body_with_end(sanitized, opening)
-        if closing is None:
-            continue
-        is_definition = re.match(
-            r"\s*(?::=|=)", sanitized[closing + 1:]
-        ) is not None
-        yield match.group(1), body, closing, is_definition
-
-
-def _has_numeric_evaluation(code: str) -> bool:
-    for name, body, _closing, is_definition in _call_records(code):
-        if name.casefold() in _STRUCTURAL_CALLS or is_definition:
-            continue
-        if _NUMBER_RE.search(body):
-            return True
-    return False
-
-
-def _normalized_code(code: str) -> str:
-    # Keep a separator between tokens.  Removing every whitespace character
-    # would turn a postfix expression such as ``x // N`` followed by the next
-    # line into ``nnextCall`` and hide a valid construct at that boundary.
-    return re.sub(r"\s+", " ", _sanitize_wolfram(code)).casefold()
-
-
-def _contains_construct(code: str, construct: str) -> bool:
-    needle = construct.casefold()
-    return any(
-        name.casefold() == needle and not is_definition
-        for name, _body, _closing, is_definition in _call_records(code)
-    )
-
-
 def _validate_balanced(code: str) -> None:
     sanitized = _sanitize_wolfram(code)
     expected = {"[": "]", "{": "}", "(": ")"}
@@ -346,9 +243,46 @@ def _validate_balanced(code: str) -> None:
         )
 
 
+def _definition_records(code: str):
+    """Yield (name, body, is_definition) for balanced Wolfram calls."""
+
+    sanitized = _sanitize_wolfram(code)
+    for match in _CALL_RE.finditer(sanitized):
+        opening = match.end() - 1
+        depth = 0
+        in_string = False
+        escaped = False
+        closing = None
+        for index in range(opening, len(sanitized)):
+            char = sanitized[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "[":
+                depth += 1
+            elif char == "]":
+                depth -= 1
+                if depth == 0:
+                    closing = index
+                    break
+        if closing is None:
+            continue
+        is_definition = re.match(
+            r"\s*(?::=|=)", sanitized[closing + 1:]
+        ) is not None
+        yield match.group(1), sanitized[opening + 1:closing], is_definition
+
+
 def _redefined_pattern_functions(code: str) -> tuple[str, ...]:
     names = []
-    for name, body, _closing, is_definition in _call_records(code):
+    for name, body, is_definition in _definition_records(code):
         if is_definition and "_" in body:
             names.append(name)
         if name.casefold() in {"set", "setdelayed"} and "_" in body:
@@ -379,32 +313,6 @@ def _validate_code(tipo2: str, procedures: tuple[str, ...]) -> None:
                 "RESPUESTA_TIPO2 debe contener Wolfram sin prosa"
             )
 
-    if {"timing_repeated", "timing_graphica"}.intersection(procedures):
-        redefined = _redefined_pattern_functions(tipo2)
-        if redefined:
-            names = ", ".join(redefined)
-            raise ConsultationValidationError(
-                "los procedimientos de timing no deben redefinir funciones "
-                f"({names})"
-            )
-
-    missing = []
-    for procedure_id in procedures:
-        for construct in PROCEDURE_REQUIREMENTS[procedure_id]:
-            if construct == "__numeric_evaluation__":
-                present = _has_numeric_evaluation(tipo2)
-                label = "una evaluación concreta de Wolfram"
-            else:
-                present = _contains_construct(tipo2, construct)
-                label = construct
-            if not present:
-                missing.append(f"{procedure_id} requiere {label}")
-    if missing:
-        raise ConsultationValidationError(
-            "; ".join(missing),
-            errors=missing,
-        )
-
 
 def _expected_ids(expected_procedures: Sequence[str] | str | None) -> tuple[str, ...]:
     if not expected_procedures:
@@ -416,18 +324,38 @@ def _expected_ids(expected_procedures: Sequence[str] | str | None) -> tuple[str,
     return _procedure_ids(values)
 
 
+def _validate_protected(tipo2: str, protected_names) -> None:
+    if not protected_names:
+        return
+    protected = {str(name).casefold() for name in protected_names}
+    redefined = [
+        name
+        for name in _redefined_pattern_functions(tipo2)
+        if name.casefold() in protected
+    ]
+    if redefined:
+        raise ConsultationValidationError(
+            "RESPUESTA_TIPO2 redefine una función del curso: "
+            + ", ".join(redefined)
+        )
+
+
 def parse_and_validate(
     output: str,
     expected_procedures: Sequence[str] | str | None = None,
+    protected_names: Sequence[str] | str | None = None,
 ) -> ConsultationResult:
     """Parse, normalize, and validate one complete model response.
 
     The returned ``tipo2`` is paste-ready: one outer Wolfram fence is removed
     and the final ``PROCEDIMIENTO`` marker is never included.  Any malformed
-    section, unknown procedure, leftover fence, or missing required construct
-    raises :class:`ConsultationValidationError` with a focused message.
+    section, unknown chapter, leftover fence, expected chapter left out, or a
+    redefinition of a protected course function raises
+    :class:`ConsultationValidationError` with a focused message.
     """
 
+    if isinstance(protected_names, str):
+        protected_names = [protected_names]
     if not isinstance(output, str):
         raise ConsultationValidationError("la respuesta de OpenCode no es texto")
     output = output.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
@@ -466,14 +394,15 @@ def parse_and_validate(
     )
     if missing_expected:
         raise ConsultationValidationError(
-            "faltan procedimientos esperados: " + ", ".join(missing_expected),
+            "faltan capítulos esperados: " + ", ".join(missing_expected),
             errors=tuple(
-                f"falta procedimiento esperado: {procedure_id}"
+                f"falta capítulo esperado: {procedure_id}"
                 for procedure_id in missing_expected
             ),
         )
     tipo2 = _strip_one_code_fence(output[second.end():marker.start()])
     _validate_code(tipo2, procedures)
+    _validate_protected(tipo2, protected_names)
     return ConsultationResult(tipo1=tipo1, tipo2=tipo2, procedures=procedures)
 
 

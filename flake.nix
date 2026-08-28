@@ -1,5 +1,5 @@
 {
-  description = "Vicre - screen-capture assistant that queries OpenCode using bundled course PDFs";
+  description = "Vicre - screen-capture assistant that queries OpenCode using the course master workbook";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 

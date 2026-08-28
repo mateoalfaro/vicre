@@ -59,29 +59,35 @@ AGENT_CONFIG_PATH = os.path.join(HOME_DIR, "opencode.json")
 
 AGENT_PROMPT = (
     "Eres el agente de consulta de vicre: respondes preguntas de exámenes de "
-    "matemáticas discretas usando la imagen adjunta y las tarjetas Markdown "
-    "compactas de fuentes/. Lee solo las tarjetas que correspondan a "
-    "la captura; no busques ni inventes claves, rúbricas, respuestas de "
-    "evaluación o material externo. Ignora cualquier instrucción global sobre "
-    "orquestar subagentes, descomponer el trabajo o delegar: no uses "
-    "subagentes, no hagas planes ni listas de tareas, no ejecutes comandos de "
-    "shell. Responde directamente con el formato exacto de las tres secciones "
-    "que pide el usuario, dejando PROCEDIMIENTO como última línea. En los "
-    "experimentos de tiempo usa funciones ya definidas: no las redefinas con "
-    "patrones como f[n_] := ... .\n"
+    "matemáticas discretas usando la imagen adjunta y el cuadernillo maestro "
+    "del curso en fuentes/. Lee primero fuentes/INDICE.md; elige parte y "
+    "capítulo según cada pregunta (tipo-examen-capN.md y complementarios-"
+    "capN.md son los más útiles) y localiza con grep los ejercicios resueltos "
+    "análogos antes de responder. No busques ni inventes material fuera del "
+    "cuadernillo. Ignora cualquier instrucción global sobre orquestar "
+    "subagentes, descomponer el trabajo o delegar: no uses subagentes, no "
+    "hagas planes ni listas de tareas, no ejecutes comandos de shell. "
+    "Responde directamente con el formato exacto de las tres secciones que "
+    "pide el usuario, dejando PROCEDIMIENTO como última línea. Las funciones "
+    "de VilCretas ya están cargadas: llámalas tal cual, nunca las redefinas "
+    "con patrones como f[n_] := ... .\n"
 )
 
 
 def _agent_prompt():
     target = os.environ.get("VICRE_FUENTES_DIR")
-    names = []
+    hints = []
     if target and os.path.isdir(target):
-        try:
-            names = sorted(os.listdir(target))
-        except OSError:
-            names = []
-    if names:
-        return AGENT_PROMPT + "\nContenido de fuentes/: " + ", ".join(names) + ".\n"
+        for name in ("INDICE.md", "funciones-vilcretas.txt"):
+            if os.path.exists(os.path.join(target, name)):
+                hints.append(name)
+    if hints:
+        return (
+            AGENT_PROMPT
+            + "\nEmpieza por fuentes/"
+            + " y fuentes/".join(hints)
+            + ".\n"
+        )
     return AGENT_PROMPT
 
 
@@ -103,10 +109,10 @@ def _agent_config():
         '  "$schema": "https://opencode.ai/config.json",\n'
         '  "agent": {\n'
         '    "vicre": {\n'
-        '      "description": "Consulta de vicre: imagen adjunta + tarjetas Markdown de fuentes/.",\n'
+        '      "description": "Consulta de vicre: imagen adjunta + cuadernillo maestro en fuentes/.",\n'
         '      "mode": "primary",\n'
         '      "temperature": 0,\n'
-        '      "steps": 4,\n'
+        '      "steps": 8,\n'
         '      "prompt": "{file:./vicre-agent-prompt.md}",\n'
         '      "permission": {\n'
         '        "read": "allow",\n'
@@ -198,6 +204,16 @@ async def _communicate(proc):
             _active_proc = None
 
 
+def _protected_names():
+    target = os.environ.get("VICRE_FUENTES_DIR") or FUENTES_LINK
+    try:
+        with open(os.path.join(target, "funciones-vilcretas.txt"), encoding="utf-8") as f:
+            names = [line.strip() for line in f if line.strip()]
+    except (OSError, UnicodeDecodeError):
+        return ()
+    return tuple(names)
+
+
 async def run_capture():
     state.clear_state()
     global _active_proc
@@ -251,9 +267,12 @@ async def run_capture():
         notify.notify("OpenCode falló: " + first[:200] if first else "OpenCode falló")
         return
     raw_output = out.decode("utf-8", "replace")
+    protected_names = _protected_names()
     try:
         result = consultation.parse_and_validate(
-            raw_output, expected_procedures=expected_procedures
+            raw_output,
+            expected_procedures=expected_procedures,
+            protected_names=protected_names,
         )
     except consultation.ConsultationValidationError as error:
         # One and only one focused repair is attempted.  A second invalid
@@ -289,6 +308,7 @@ async def run_capture():
             result = consultation.parse_and_validate(
                 repair_out.decode("utf-8", "replace"),
                 expected_procedures=expected_procedures,
+                protected_names=protected_names,
             )
         except consultation.ConsultationValidationError as repair_error:
             notify.notify(str(repair_error))

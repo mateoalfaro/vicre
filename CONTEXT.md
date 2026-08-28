@@ -29,10 +29,12 @@ Código Wolfram Mathematica que verifica los resultados de la Respuesta Tipo 1, 
 _Avoid_: código de verificación, script
 
 **Fuentes**:
-Tarjetas Markdown compactas de procedimiento que viajan dentro del paquete de
-Vicre y se exponen en `~/.vicre/fuentes` para que OpenCode las consulte. El
-runtime no contiene preguntas, claves, rúbricas ni PDFs de evaluación.
-_Avoid_: biblioteca, documentos
+El cuadernillo maestro del curso (`Ejercicios_y_Respuestas.pdf`, 461 páginas,
+1712 ejercicios resueltos) extraído en tiempo de compilación a chunks de texto
+navegables (`INDICE.md`, un archivo por parte+capítulo, catálogo de funciones
+VilCretas) que viajan dentro del paquete de Vicre y se exponen en
+`~/.vicre/fuentes` para que OpenCode los consulte con grep/read.
+_Avoid_: biblioteca, documentos, tarjetas
 
 **Directorio de trabajo**:
 `~/.vicre`: contiene `photos/`, `fuentes/` y es el cwd desde el que corre OpenCode.

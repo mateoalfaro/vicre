@@ -4,13 +4,13 @@ from unittest import mock
 from vicre import flow
 
 
-VALID_REPEATED = """
+VALID_CAP1 = """
 RESPUESTA_TIPO1:
 #1: respuesta
 RESPUESTA_TIPO2:
-Table[{n, RepeatedTiming[f[n]][[1]]}, {n, 1, 10}]
-ListLinePlot[data]
-PROCEDIMIENTO: timing_repeated
+Lucas[n_] := If[n == 1, 1, If[n == 2, 3, Lucas[n - 1] + Lucas[n - 2]]]
+Lucas[8]
+PROCEDIMIENTO: cap1
 """
 
 
@@ -20,8 +20,20 @@ class _Process:
 
 
 class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
+    def _patches(self, ocr_text=""):
+        return (
+            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
+            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
+            mock.patch.object(flow.routing, "ocr_image", return_value=ocr_text),
+            mock.patch.object(flow, "ensure_fuentes"),
+            mock.patch.object(flow, "ensure_config"),
+            mock.patch.object(flow, "_protected_names", return_value=("Productoria",)),
+            mock.patch.object(flow.state, "clear_state"),
+            mock.patch.object(flow.notify, "notify"),
+        )
+
     async def test_one_validation_repair_then_only_validated_result_is_saved(self):
-        initial = "RESPUESTA_TIPO1: #1: respuesta\nRESPUESTA_TIPO2: Sum[x, {x, 1, n}]"
+        initial = "RESPUESTA_TIPO1: #1: respuesta\nRESPUESTA_TIPO2: Lucas[8]"
         processes = [_Process(), _Process()]
         launch_prompts = []
 
@@ -32,19 +44,21 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         async def communicate(_proc):
             if len(launch_prompts) == 1:
                 return initial.encode(), b""
-            return VALID_REPEATED.encode(), b""
+            return VALID_CAP1.encode(), b""
 
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
         with (
-            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
-            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
-            mock.patch.object(flow.routing, "ocr_image", return_value=""),
-            mock.patch.object(flow, "ensure_fuentes"),
-            mock.patch.object(flow, "ensure_config"),
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
             mock.patch.object(flow, "_launch_opencode", new=launch),
             mock.patch.object(flow, "_communicate", new=communicate),
-            mock.patch.object(flow.state, "clear_state"),
             mock.patch.object(flow.state, "write_state") as write_state,
-            mock.patch.object(flow.notify, "notify"),
+            notify,
         ):
             flow._active_proc = None
             await flow.run_capture()
@@ -53,11 +67,12 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(launch_prompts[0])
         self.assertIn("ERROR DE VALIDACIÓN", launch_prompts[1])
         write_state.assert_called_once()
-        self.assertEqual(write_state.call_args.args[:2], ("#1: respuesta", "Table[{n, RepeatedTiming[f[n]][[1]]}, {n, 1, 10}]\nListLinePlot[data]"))
-        self.assertEqual(write_state.call_args.kwargs["procedures"], ("timing_repeated",))
+        self.assertEqual(
+            write_state.call_args.kwargs["procedures"], ("cap1",)
+        )
 
     async def test_invalid_second_repair_is_not_saved_and_still_launches_only_twice(self):
-        invalid = "RESPUESTA_TIPO1: #1\nRESPUESTA_TIPO2: Sum[x, {x, 1, n}]"
+        invalid = "RESPUESTA_TIPO1: #1\nRESPUESTA_TIPO2: Lucas[8]"
         processes = [_Process(), _Process()]
         launches = []
 
@@ -68,17 +83,19 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         async def communicate(_proc):
             return invalid.encode(), b""
 
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
         with (
-            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
-            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
-            mock.patch.object(flow.routing, "ocr_image", return_value=""),
-            mock.patch.object(flow, "ensure_fuentes"),
-            mock.patch.object(flow, "ensure_config"),
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
             mock.patch.object(flow, "_launch_opencode", new=launch),
             mock.patch.object(flow, "_communicate", new=communicate),
-            mock.patch.object(flow.state, "clear_state"),
             mock.patch.object(flow.state, "write_state") as write_state,
-            mock.patch.object(flow.notify, "notify"),
+            notify,
         ):
             flow._active_proc = None
             await flow.run_capture()
@@ -87,14 +104,6 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         write_state.assert_not_called()
 
     async def test_ocr_hints_are_passed_to_prompt_and_validation(self):
-        output = """
-RESPUESTA_TIPO1:
-#1: respuesta
-RESPUESTA_TIPO2:
-Table[{n, RepeatedTiming[f[n]][[1]]}, {n, 1, 10}]
-ListLinePlot[data]
-PROCEDIMIENTO: timing_repeated
-"""
         proc = _Process()
         launch_calls = []
 
@@ -103,46 +112,73 @@ PROCEDIMIENTO: timing_repeated
             return proc
 
         async def communicate(_proc):
-            return output.encode(), b""
+            return VALID_CAP1.encode(), b""
 
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches(
+            ocr_text="programa recursivo de pila Fibonacci"
+        )
         with (
-            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
-            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
-            mock.patch.object(flow.routing, "ocr_image", return_value="RepeatedTiming ListLinePlot"),
-            mock.patch.object(flow, "ensure_fuentes"),
-            mock.patch.object(flow, "ensure_config"),
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
             mock.patch.object(flow, "_launch_opencode", new=launch),
             mock.patch.object(flow, "_communicate", new=communicate),
-            mock.patch.object(flow.state, "clear_state"),
             mock.patch.object(flow.state, "write_state") as write_state,
-            mock.patch.object(flow.notify, "notify"),
+            notify,
         ):
             flow._active_proc = None
             await flow.run_capture()
 
-        self.assertEqual(launch_calls[0][1], ("timing_repeated",))
+        self.assertEqual(launch_calls[0][1], ("cap1",))
+        self.assertIsNone(launch_calls[0][0])
         write_state.assert_called_once()
 
     async def test_process_launch_oserror_is_reported_without_saving(self):
         async def launch(photo, request_prompt=None, expected_procedures=()):
             raise OSError("opencode missing")
 
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
         with (
-            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
-            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
-            mock.patch.object(flow.routing, "ocr_image", return_value=""),
-            mock.patch.object(flow, "ensure_fuentes"),
-            mock.patch.object(flow, "ensure_config"),
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
             mock.patch.object(flow, "_launch_opencode", new=launch),
-            mock.patch.object(flow.state, "clear_state"),
             mock.patch.object(flow.state, "write_state") as write_state,
-            mock.patch.object(flow.notify, "notify") as notify,
+            notify as notify_mock,
         ):
             flow._active_proc = None
             await flow.run_capture()
 
         write_state.assert_not_called()
-        notify.assert_called_once()
+        notify_mock.assert_called_once()
+
+
+class AgentConfigTests(unittest.TestCase):
+    def test_agent_config_locks_down_tools_and_allows_navigation(self):
+        config = flow._agent_config()
+
+        self.assertIn('"steps": 8', config)
+        self.assertIn("cuadernillo maestro", config)
+        self.assertIn('"bash": "deny"', config)
+        self.assertIn('"read": "allow"', config)
+        self.assertIn('"grep": "allow"', config)
+
+    def test_agent_prompt_mentions_index_when_available(self):
+        with mock.patch.dict(
+            "os.environ", {"VICRE_FUENTES_DIR": "/tmp/opencode/fuentes-out"}
+        ):
+            prompt = flow._agent_prompt()
+
+        self.assertIn("INDICE.md", prompt)
+        self.assertIn("funciones-vilcretas.txt", prompt)
 
 
 if __name__ == "__main__":

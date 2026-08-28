@@ -1,6 +1,6 @@
 # Vicre
 
-Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando tarjetas Markdown compactas del curso (`fuentes/`), y luego escribe la respuesta directamente en la ventana enfocada.
+Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando el cuadernillo maestro del curso (`fuentes/Ejercicios_y_Respuestas.pdf`, extraído a Markdown navegable en tiempo de compilación), y luego escribe la respuesta directamente en la ventana enfocada.
 
 ## Atajos
 
@@ -10,7 +10,7 @@ Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, V
 | `ctrl+alt+o` | Escribe la **Respuesta Tipo 1** (respuestas directas) donde esté escribiendo |
 | `ctrl+alt+p` | Escribe la **Respuesta Tipo 2** (código Wolfram de verificación) |
 
-La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escritura usa `ydotool`/uinput. El éxito es silencioso; los errores llegan como notificación.
+La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escritura usa portapapeles (`wl-copy`) + `ydotool`/uinput con un solo `ctrl+v` (ver `docs/adr/0002-clipboard-paste.md`). El éxito es silencioso; los errores llegan como notificación.
 
 ## Instalación (NixOS con flakes)
 
@@ -57,15 +57,22 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 ```
 ~/.vicre/
 ├── photos/               capturas PNG
-├── fuentes/              symlink a tarjetas Markdown compactas dentro del paquete de Nix
+├── fuentes/              symlink al cuadernillo extraído dentro del paquete de Nix
+│   ├── INDICE.md         índice de navegación (partes, capítulos, categorías)
+│   ├── ejercicios-capN.md / respuestas-capN.md / complementarios-capN.md / tipo-examen-capN.md
+│   ├── apendice-{a,b,c}.md
+│   └── funciones-vilcretas.txt   nombres protegidos del curso (validación)
 ├── opencode.json         agente "vicre" (sin bash/subagentes/task)
 ├── vicre-agent-prompt.md prompt del agente
 └── state.json            última respuesta parseada
 ```
 
-El runtime solo contiene las tarjetas abstractas de `fuentes/runtime/`. Las
-preguntas, claves, rúbricas y PDFs de evaluación no se incluyen en el paquete
-ni se exponen al agente.
+El PDF maestro (`fuentes/Ejercicios_y_Respuestas.pdf`, 461 páginas) se extrae
+a chunks de texto deterministas durante la compilación de Nix
+(`tools/extract_fuentes.py`, pypdf). El agente nunca lee el PDF: navega los
+chunks con grep/read guiándose por `INDICE.md` (número de ejercicio
+`cap.sección.ejer`, categorías tipo examen, capítulo). Las preguntas, claves
+y rúbricas de evaluación viven en el cuadernillo del curso, no en este repo.
 
 ## CLI
 

@@ -47,12 +47,24 @@ def _normalize_ocr(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", without_marks).strip()
 
 
-def _has(text: str, *parts: str) -> bool:
-    return all(re.search(part, text) is not None for part in parts)
+# Keyword families per cuadernillo chapter, matched against normalized text
+# (lowercase, accents stripped, punctuation collapsed to spaces).  Families
+# are intentionally chapter-granular: a coarse but precise hint is more
+# useful to the model than a fragile one.
+_CHAPTER_KEYWORDS = (
+    ("cap1", (r"recursiv", r"de pila", r"de cola", r"fibonacci", r"factorial", r"casos ?raiz")),
+    ("cap2", (r"recurrencia", r"homogenea", r"ecuacion ?caracteristica", r"metodo ?rrhl", r"findrrhl", r"raices ?distintas")),
+    ("cap3", (r"algoritmo", r"o grande", r"asintot", r"eficiencia", r"repeated ?timing", r"list ?line ?plot", r"pruebaada", r"experimento")),
+    ("cap4", (r"relacion ?binaria", r"matriz ?de ?la ?relacion", r"equivalencia", r"producto ?cartesiano", r"clasificar ?relacion")),
+    ("cap5", (r"grafo", r"trayectoria", r"circuito", r"euler", r"hamilton", r"camino ?mas ?corto", r"ruta")),
+    ("cap6", (r"arbol", r"huffman", r"polaca", r"arbol ?generador", r"expansion ?minima")),
+    ("cap7", (r"automata", r"maquina ?de ?estados", r"hilera", r"afd", r"aef")),
+    ("cap8", (r"gramatica", r"lenguaje", r"bnf", r"derivacion", r"libre ?de ?contexto")),
+)
 
 
 def infer_expected_procedures(ocr_text: str) -> tuple[str, ...]:
-    """Infer conservative required procedure IDs from OCR text.
+    """Infer conservative cuadernillo chapter IDs from OCR text.
 
     Unknown or low-confidence text returns no hints.  Hints are only used as
     an additional validation requirement; they never invent a result.
@@ -62,78 +74,7 @@ def infer_expected_procedures(ocr_text: str) -> tuple[str, ...]:
         return ()
     text = _normalize_ocr(ocr_text)
     procedures = []
-
-    # Known exam fingerprints first.  The second fingerprint is intentionally
-    # specific: the suffix and 200/20 range together distinguish it from a
-    # generic digit algorithm question.
-    numbered_f_names = _has(
-        text,
-        r"(?:\bf\s*[1il]\b|\bfi[1l]?)",
-        r"\bf\s*[2z]",
-    )
-    four_recurrence_methods = (
-        re.search(r"(?:\b4\b|cuatro)\s+a[il]gor[il]t?m", text) is not None
-        and numbered_f_names
-        and "20" in text
-        and re.search(r"exper|exer", text) is not None
-    )
-    recurrence = (
-        four_recurrence_methods
-        or (
-            _has(
-                text,
-                r"\bf\s*[1il]\b",
-                r"\bf\s*[2z]\b",
-                r"\bf\s*[3e]\b",
-                r"\bf\s*[4a]\b",
-            )
-            and re.search(r"\b5\b.*\b20\b|\b20\b.*\b5\b", text) is not None
-            and re.search(r"recurr|algorit|metod", text) is not None
-        )
-    )
-    if recurrence:
-        procedures.append("timing_repeated")
-
-    digit_experiment = (
-        (
-            re.search(r"745\s*621", text) is not None
-            or (
-                re.search(r"dos\s+metod", text) is not None
-                and re.search(r"recur", text) is not None
-            )
-        )
-        and re.search(r"200", text) is not None
-        and re.search(r"(?:increment|crement|nrement).*20", text) is not None
-        and re.search(r"recur|metod|\bf\b", text) is not None
-    )
-    if digit_experiment:
-        procedures.append("numeric_compare")
-        procedures.append("timing_graphica")
-
-    # Command names are written with spaces here because OCR frequently
-    # splits CamelCase identifiers.
-    if re.search(r"repeated\s*timing|list\s*line\s*plot", text):
-        if "timing_repeated" not in procedures:
-            procedures.append("timing_repeated")
-    if re.search(r"prueba\s*ada\s*grafica", text):
-        if "timing_graphica" not in procedures:
-            procedures.append("timing_graphica")
-    if re.search(r"comp\s*limit", text):
-        procedures.append("comp_limit")
-    if re.search(r"find\s*sequence\s*function", text):
-        procedures.append("loop_count")
-    if re.search(r"\bproduct\b", text):
-        procedures.append("asymptotic_product")
-    # Sum is ambiguous: cycle questions also use it. Only force asymptotic
-    # routing when OCR sees the paired Limit procedure; cycle vocabulary
-    # instead reinforces loop_count.
-    if re.search(r"\bsum\b", text):
-        if re.search(r"cicl|iteracion", text):
-            if "loop_count" not in procedures:
-                procedures.append("loop_count")
-        elif re.search(r"\blimit\b", text) and "loop_count" not in procedures:
-            procedures.append("asymptotic_sum")
-
-    # Preserve first-seen order while avoiding duplicate hints from a command
-    # and a fingerprint.
-    return tuple(dict.fromkeys(procedures))
+    for chapter_id, keywords in _CHAPTER_KEYWORDS:
+        if any(re.search(keyword, text) is not None for keyword in keywords):
+            procedures.append(chapter_id)
+    return tuple(procedures)

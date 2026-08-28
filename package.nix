@@ -7,6 +7,7 @@
   ydotool,
   libnotify,
   glib,
+  wl-clipboard,
 }:
 
 let
@@ -23,10 +24,12 @@ let
       ./module.nix
       ./package.nix
       ./tests
+      ./tools
       ./vicre
-      ./fuentes/runtime
+      ./fuentes
     ];
   };
+  extractionPython = python3Packages.python.withPackages (ps: [ ps.pypdf ]);
   tesseractCourse = tesseract.override {
     enableLanguages = [
       "eng"
@@ -65,12 +68,20 @@ python3Packages.buildPythonApplication {
       --prefix PYTHONPATH : "$site" \
       --set VICRE_FUENTES_DIR "$out/share/vicre/fuentes" \
       --set VICRE_BIN "$out/bin/vicre" \
-      --prefix PATH : "${lib.makeBinPath [ opencode tesseractCourse ydotool libnotify glib ]}" \
+      --prefix PATH : "${lib.makeBinPath [
+        opencode
+        tesseractCourse
+        ydotool
+        libnotify
+        glib
+        wl-clipboard
+      ]}" \
       --add-flags "-m vicre.__main__"
 
     mkdir -p "$out/share/vicre"
     mkdir -p "$out/share/vicre/fuentes"
-    cp -r fuentes/runtime/. "$out/share/vicre/fuentes/"
+    ${extractionPython.interpreter} tools/extract_fuentes.py \
+      fuentes/Ejercicios_y_Respuestas.pdf "$out/share/vicre/fuentes"
   '';
 
   meta = {

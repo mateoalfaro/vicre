@@ -1,113 +1,69 @@
-import subprocess
 import unittest
-from unittest import mock
 
 from vicre.routing import infer_expected_procedures, ocr_image
 
 
-class RoutingTests(unittest.TestCase):
-    def test_recurrence_experiment_fingerprint_routes_repeated_timing(self):
-        text = """
-        Considere cuatro algoritmos f1 f2 f3 f4 que calculan una recurrencia.
-        El experimento toma n entre 5 y 20 con incremento 1.
-        """
+class NormalizeTests(unittest.TestCase):
+    def test_empty_text_has_no_hints(self):
+        self.assertEqual(infer_expected_procedures(""), ())
+        self.assertEqual(infer_expected_procedures("   \n  "), ())
+        self.assertEqual(infer_expected_procedures(None), ())
 
-        self.assertEqual(infer_expected_procedures(text), ("timing_repeated",))
+    def test_noise_text_has_no_hints(self):
+        self.assertEqual(infer_expected_procedures("valor 23 igual a siete"), ())
 
-    def test_recurrence_fingerprint_tolerates_observed_ocr_errors(self):
-        text = '''
-        Considere s sguientes 4 aigorimos que realzan a misma tarea.
-        filndi=f1l-11-filn-21 + il-3] f2ln-1]-2In-2]+f2[n-3]
-        labors i exerimerto paran e 20. Ordene los metodos por rapidez.
-        '''
 
-        self.assertEqual(infer_expected_procedures(text), ("timing_repeated",))
+class ChapterRoutingTests(unittest.TestCase):
+    def test_recursion_keywords_route_to_cap1(self):
+        text = "Escriba un programa recursivo de pila para la sucesión de Fibonacci"
+        self.assertEqual(infer_expected_procedures(text), ("cap1",))
 
-    def test_recurrence_fingerprint_tolerates_spanish_ocr_joined_range(self):
-        text = '''
-        Considere los siguientes 4 algoritmos. filndi f2ln-1.
-        Elabore un exermento para n en 5y20 y ordene los métodos.
-        '''
+    def test_recurrence_keywords_route_to_cap2(self):
+        text = "Resuelva la relación de recurrencia homogénea con la ecuación característica"
+        self.assertEqual(infer_expected_procedures(text), ("cap2",))
 
-        self.assertEqual(infer_expected_procedures(text), ("timing_repeated",))
-
-    def test_even_digit_fingerprint_routes_numeric_and_graphica(self):
-        text = """
-        Para n=859745621 compare f y g. Use valores de 1 a 200 con incremento 20.
-        Prueba ADA Grafica en el examen.
-        """
-
+    def test_algorithm_keywords_route_to_cap3(self):
+        self.assertEqual(infer_expected_procedures("O grande del algoritmo"), ("cap3",))
         self.assertEqual(
-            set(infer_expected_procedures(text)),
-            {"numeric_compare", "timing_graphica"},
+            infer_expected_procedures("use RepeatedTiming y ListLinePlot"), ("cap3",)
+        )
+        self.assertEqual(infer_expected_procedures("PruebaADA"), ("cap3",))
+
+    def test_graph_keywords_route_to_cap5(self):
+        self.assertEqual(
+            infer_expected_procedures("circuito de Euler en la teoría de grafos"),
+            ("cap5",),
         )
 
-    def test_even_digit_fingerprint_tolerates_one_wrong_leading_digit(self):
-        text = '''
-        Considre dos metodos. El valor cuando n = 8507456215.
-        El metodo que usa recursividad de cola. Valores de 1 a 12200,
-        cremento do20.
-        '''
-
+    def test_tree_keywords_route_to_cap6(self):
         self.assertEqual(
-            set(infer_expected_procedures(text)),
-            {"numeric_compare", "timing_graphica"},
+            infer_expected_procedures("código de Huffman del árbol"), ("cap6",)
         )
 
-    def test_two_method_recursion_fingerprint_survives_missing_number(self):
-        text = '''
-        Considere los siguientes dos metodos. El metodo que usa recursividad.
-        Enfoque experimental usando valores de 1 a 200 con un incremento
-        de 20.
-        '''
-
+    def test_automata_keywords_route_to_cap7(self):
         self.assertEqual(
-            set(infer_expected_procedures(text)),
-            {"numeric_compare", "timing_graphica"},
+            infer_expected_procedures("Autómatas: hileras aceptadas por un AFD"),
+            ("cap7",),
         )
 
-    def test_spanish_suma_is_not_mistaken_for_wolfram_sum(self):
-        text = "Module con variable suma para dos metodos"
-
-        self.assertEqual(infer_expected_procedures(text), ())
-
-    def test_four_algorithms_without_experiment_is_not_forced_to_timing(self):
-        text = "Cuatro algoritmos f1 f2 calculan f[20]"
-
-        self.assertEqual(infer_expected_procedures(text), ())
-
-    def test_sum_for_cycle_iterations_routes_loop_count(self):
-        text = "Use Sum para contar las iteraciones de los ciclos"
-
-        self.assertEqual(infer_expected_procedures(text), ("loop_count",))
-
-    def test_command_names_are_case_and_ocr_space_tolerant(self):
-        text = "Repeated Timing + List Line Plot; Comp Limit; Find Sequence Function"
-
+    def test_grammar_keywords_route_to_cap8(self):
         self.assertEqual(
-            set(infer_expected_procedures(text)),
-            {"timing_repeated", "comp_limit", "loop_count"},
+            infer_expected_procedures("gramática libre de contexto en BNF"), ("cap8",)
         )
 
-    def test_tesseract_failure_fails_open(self):
-        with mock.patch(
-            "vicre.routing.subprocess.run",
-            side_effect=OSError("not installed"),
-        ):
-            self.assertEqual(ocr_image("/tmp/capture.png"), "")
+    def test_several_chapters_keep_vocabulary_order(self):
+        text = "el árbol de Huffman y el circuito del grafo"
+        self.assertEqual(infer_expected_procedures(text), ("cap5", "cap6"))
 
-    def test_tesseract_timeout_fails_open_and_uses_psm_6(self):
-        with mock.patch(
-            "vicre.routing.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("tesseract", 5),
-        ) as run:
-            self.assertEqual(ocr_image("/tmp/capture.png"), "")
+    def test_camelcase_commands_survive_normalization(self):
+        self.assertEqual(
+            infer_expected_procedures("MetodoRRHL y FindRRHL"), ("cap2",)
+        )
 
-        args, kwargs = run.call_args
-        self.assertIn("--psm", args[0])
-        self.assertIn("6", args[0])
-        self.assertIn("spa+eng", args[0])
-        self.assertLessEqual(kwargs["timeout"], 5)
+
+class OcrImageTests(unittest.TestCase):
+    def test_missing_binary_returns_empty_text(self):
+        self.assertEqual(ocr_image("/nonexistent/photo.png"), "")
 
 
 if __name__ == "__main__":
