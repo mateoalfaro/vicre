@@ -64,6 +64,7 @@ _FUNCTION_ROW_RE = re.compile(r"^([A-Z][A-Za-z0-9]+)\s+\d", re.MULTILINE)
 
 def _clean_page(text):
     text = _RUNNING_HEADER_RE.sub("", text)
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
     lines = [line for line in text.splitlines() if not _PAGE_NUM_RE.fullmatch(line)]
     return "\n".join(lines).strip("\n")
 
@@ -174,7 +175,8 @@ def _index(output, ranges, titles, categories):
         "",
         "- Con grep: números de ejercicio (`1.6.5`), nombres de comandos del curso",
         "  (`Productoria`, `RR`, `PruebaADA`, `CompLimit`...) o palabras distintivas",
-        "  de la pregunta.",
+        "  de la pregunta. Grep devuelve números de línea: usa read con offset y",
+        "  limit para leer solo ese rango; nunca leas un archivo completo.",
         "- Para una pregunta de examen, empiece por `tipo-examen-capN.md`: reproduce",
         "  el estilo del banco real. `complementarios-capN.md` trae la solución paso",
         "  a paso. `apendice-b.md` cataloga las funciones VilCretas.",

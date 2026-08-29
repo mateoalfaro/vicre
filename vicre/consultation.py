@@ -348,9 +348,10 @@ def parse_and_validate(
     """Parse, normalize, and validate one complete model response.
 
     The returned ``tipo2`` is paste-ready: one outer Wolfram fence is removed
-    and the final ``PROCEDIMIENTO`` marker is never included.  Any malformed
-    section, unknown chapter, leftover fence, expected chapter left out, or a
-    redefinition of a protected course function raises
+    and the final ``PROCEDIMIENTO`` marker is never included.  Any narration
+    before the first ``RESPUESTA_TIPO1`` header is ignored.  A duplicated or
+    misplaced section, unknown chapter, leftover fence, expected chapter left
+    out, or a redefinition of a protected course function raises
     :class:`ConsultationValidationError` with a focused message.
     """
 
@@ -359,11 +360,12 @@ def parse_and_validate(
     if not isinstance(output, str):
         raise ConsultationValidationError("la respuesta de OpenCode no es texto")
     output = output.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
+    if not _SECTION_RE.search(output):
+        raise ConsultationValidationError(f"no se encontró {M1} ni {M2}")
+    # Agent narration before the first section header (introductions, notes
+    # about the consulted files) is tolerated and ignored.
+    output = output[_SECTION_RE.search(output).start():]
     first, second = _section_positions(output)
-    if output[:first.start()].strip():
-        raise ConsultationValidationError(
-            "texto antes de RESPUESTA_TIPO1 no está permitido"
-        )
 
     marker_matches = list(_PROCEDURE_RE.finditer(output))
     if not marker_matches:

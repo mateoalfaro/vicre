@@ -141,6 +141,14 @@ class SplitPagesTests(unittest.TestCase):
         self.assertNotIn("Recursividad Ejercicios y respuestas", body)
         self.assertNotRegex(body, r"(?m)^\s*7\s*$")
 
+    def test_control_characters_are_stripped(self):
+        pages = [PAGE_COVER, PAGE_TOC, PAGE_PART1, PAGE_CAP1_OPENER,
+                 "Recursividad Ejercicios y respuestas\n1.5.9 con ruido \x00\x01mezclado\x18 fin\n"]
+        files = split_pages(pages)
+
+        self.assertNotIn("\x00", files["ejercicios-1.md"])
+        self.assertIn("con ruido mezclado fin", files["ejercicios-1.md"])
+
     def test_toc_does_not_switch_to_appendix(self):
         self.assertIn("Apéndice A. Los recursos del curso . . . 440", self.files["intro.md"])
 

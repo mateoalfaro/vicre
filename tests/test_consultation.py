@@ -56,9 +56,29 @@ class SectionShapeTests(unittest.TestCase):
         with self.assertRaises(ConsultationValidationError):
             parse_and_validate("RESPUESTA_TIPO1:\n#1: 2\nRESPUESTA_TIPO2:\n1\n")
 
-    def test_text_before_tipo1_is_rejected(self):
-        with self.assertRaises(ConsultationValidationError):
-            parse_and_validate("Claro,\n" + _output())
+    def test_narration_before_tipo1_is_ignored(self):
+        narrated = (
+            "He revisado el índice del cuadernillo y localicé el ejercicio análogo.\n"
+            + _output()
+        )
+        result = parse_and_validate(narrated)
+
+        self.assertEqual(result.tipo1, "#1: 7")
+        self.assertEqual(result.procedures, ("cap1",))
+
+    def test_multiline_narration_is_ignored(self):
+        narrated = "Nota:\n\nEl capítulo consultado es cap1.\n\n" + _output()
+        result = parse_and_validate(narrated)
+
+        self.assertEqual(result.tipo1, "#1: 7")
+
+    def test_narration_without_marker_line_is_never_a_false_header(self):
+        narrated = (
+            "Primero reviso fuentes; RESPUESTA_TIPO1 viene abajo.\n" + _output()
+        )
+        result = parse_and_validate(narrated)
+
+        self.assertEqual(result.tipo1, "#1: 7")
 
     def test_tipo2_before_tipo1_is_rejected(self):
         with self.assertRaises(ConsultationValidationError):

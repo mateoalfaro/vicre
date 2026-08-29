@@ -39,8 +39,8 @@ Y en algún módulo de la configuración:
     enable = true;
     user = "jafed";
     # programs.vicre.systemd.enable = false;  # opt out of the autostart services
-    # model = "openai/gpt-5.6-sol";   # vision model for the consulta (default)
-    # variant = "medium";             # reasoning effort for that model
+    # model = "opencode-go/glm-5.3-flash";   # vision model for the consulta (default)
+    # variant = "max";                       # reasoning effort for that model (low|high|max)
   };
 }
 ```

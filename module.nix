@@ -23,12 +23,12 @@ in
     };
     model = lib.mkOption {
       type = lib.types.str;
-      default = "openai/gpt-5.6-sol";
+      default = "opencode-go/glm-5.3-flash";
       description = "Model (provider/model) that vicre uses for the consulta. Must support image input.";
     };
     variant = lib.mkOption {
       type = lib.types.str;
-      default = "medium";
+      default = "max";
       description = "Reasoning variant passed to opencode run --variant.";
     };
     systemd = {

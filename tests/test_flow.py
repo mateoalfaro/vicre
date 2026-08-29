@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest import mock
 
@@ -84,24 +85,29 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
             return invalid.encode(), b""
 
         screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
-        with (
-            screenshots,
-            save_photo,
-            ocr,
-            fuentes,
-            config,
-            protected,
-            clear,
-            mock.patch.object(flow, "_launch_opencode", new=launch),
-            mock.patch.object(flow, "_communicate", new=communicate),
-            mock.patch.object(flow.state, "write_state") as write_state,
-            notify,
-        ):
-            flow._active_proc = None
-            await flow.run_capture()
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            with (
+                screenshots,
+                save_photo,
+                ocr,
+                fuentes,
+                config,
+                protected,
+                clear,
+                mock.patch.object(flow, "HOME_DIR", home),
+                mock.patch.object(flow, "_launch_opencode", new=launch),
+                mock.patch.object(flow, "_communicate", new=communicate),
+                mock.patch.object(flow.state, "write_state") as write_state,
+                notify,
+            ):
+                flow._active_proc = None
+                await flow.run_capture()
 
-        self.assertEqual(len(launches), 2)
-        write_state.assert_not_called()
+            self.assertEqual(len(launches), 2)
+            write_state.assert_not_called()
+            with open(os.path.join(home, "last-raw.txt")) as f:
+                self.assertEqual(f.read(), invalid)
 
     async def test_ocr_hints_are_passed_to_prompt_and_validation(self):
         proc = _Process()
@@ -165,7 +171,7 @@ class AgentConfigTests(unittest.TestCase):
     def test_agent_config_locks_down_tools_and_allows_navigation(self):
         config = flow._agent_config()
 
-        self.assertIn('"steps": 8', config)
+        self.assertIn('"steps": 16', config)
         self.assertIn("cuadernillo maestro", config)
         self.assertIn('"bash": "deny"', config)
         self.assertIn('"read": "allow"', config)
@@ -176,16 +182,17 @@ class AgentConfigTests(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as fuentes:
-            for name in ("INDICE.md", "funciones-vilcretas.txt"):
-                with open(os.path.join(fuentes, name), "w") as f:
-                    f.write("x")
+            with open(os.path.join(fuentes, "INDICE.md"), "w") as f:
+                f.write("x")
             with mock.patch.dict(
                 "os.environ", {"VICRE_FUENTES_DIR": fuentes}
             ):
                 prompt = flow._agent_prompt()
 
         self.assertIn("INDICE.md", prompt)
-        self.assertIn("funciones-vilcretas.txt", prompt)
+
+    def test_agent_prompt_warns_against_whole_file_reads(self):
+        self.assertIn("offset/limit", flow.AGENT_PROMPT)
 
 
 if __name__ == "__main__":

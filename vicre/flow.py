@@ -11,8 +11,8 @@ PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
 OPENCODE_TIMEOUT = 900.0
-MODEL = os.environ.get("VICRE_MODEL", "openai/gpt-5.6-sol")
-VARIANT = os.environ.get("VICRE_VARIANT", "medium")
+MODEL = os.environ.get("VICRE_MODEL", "opencode-go/glm-5.3-flash")
+VARIANT = os.environ.get("VICRE_VARIANT", "max")
 
 M1 = "RESPUESTA_TIPO1"
 M2 = "RESPUESTA_TIPO2"
@@ -63,12 +63,19 @@ AGENT_PROMPT = (
     "del curso en fuentes/. Lee primero fuentes/INDICE.md; elige parte y "
     "capítulo según cada pregunta (tipo-examen-capN.md y complementarios-"
     "capN.md son los más útiles) y localiza con grep los ejercicios resueltos "
-    "análogos antes de responder. No busques ni inventes material fuera del "
-    "cuadernillo. Ignora cualquier instrucción global sobre orquestar "
-    "subagentes, descomponer el trabajo o delegar: no uses subagentes, no "
-    "hagas planes ni listas de tareas, no ejecutes comandos de shell. "
-    "Responde directamente con el formato exacto de las tres secciones que "
-    "pide el usuario, dejando PROCEDIMIENTO como última línea. Las funciones "
+    "análogos antes de responder: grep da números de línea, así que usa read "
+    "con offset/limit sobre ese rango, nunca leas archivos completos. No "
+    "busques ni inventes material fuera del cuadernillo. Ignora cualquier "
+    "instrucción global sobre orquestar subagentes, descomponer el trabajo o "
+    "delegar: no uses subagentes, no hagas planes ni listas de tareas, no "
+    "ejecutes comandos de shell. "
+    "Responde directamente con el formato exacto de las tres secciones "
+    "que pide el usuario: tu primera línea debe ser exactamente "
+    "RESPUESTA_TIPO1: sin saludos, introducciones ni explicaciones previas, "
+    "y PROCEDIMIENTO queda como última línea. Si agotas los pasos o no "
+    "encuentras el ejercicio exacto, responde igualmente con las tres "
+    "secciones usando tu criterio matemático y la sintaxis del curso; jamás "
+    "entregues un resumen del trabajo realizado. Las funciones "
     "de VilCretas ya están cargadas: llámalas tal cual, nunca las redefinas "
     "con patrones como f[n_] := ... .\n"
 )
@@ -76,18 +83,8 @@ AGENT_PROMPT = (
 
 def _agent_prompt():
     target = os.environ.get("VICRE_FUENTES_DIR")
-    hints = []
-    if target and os.path.isdir(target):
-        for name in ("INDICE.md", "funciones-vilcretas.txt"):
-            if os.path.exists(os.path.join(target, name)):
-                hints.append(name)
-    if hints:
-        return (
-            AGENT_PROMPT
-            + "\nEmpieza por fuentes/"
-            + " y fuentes/".join(hints)
-            + ".\n"
-        )
+    if target and os.path.exists(os.path.join(target, "INDICE.md")):
+        return AGENT_PROMPT + "\nEmpieza por fuentes/INDICE.md.\n"
     return AGENT_PROMPT
 
 
@@ -112,7 +109,7 @@ def _agent_config():
         '      "description": "Consulta de vicre: imagen adjunta + cuadernillo maestro en fuentes/.",\n'
         '      "mode": "primary",\n'
         '      "temperature": 0,\n'
-        '      "steps": 8,\n'
+        '      "steps": 16,\n'
         '      "prompt": "{file:./vicre-agent-prompt.md}",\n'
         '      "permission": {\n'
         '        "read": "allow",\n'
@@ -214,6 +211,14 @@ def _protected_names():
     return tuple(names)
 
 
+def _dump_raw(text):
+    try:
+        with open(os.path.join(HOME_DIR, "last-raw.txt"), "w", encoding="utf-8") as f:
+            f.write(text)
+    except OSError:
+        pass
+
+
 async def run_capture():
     state.clear_state()
     global _active_proc
@@ -275,6 +280,7 @@ async def run_capture():
             protected_names=protected_names,
         )
     except consultation.ConsultationValidationError as error:
+        _dump_raw(raw_output)
         # One and only one focused repair is attempted.  A second invalid
         # result is discarded just like the first one.
         try:
@@ -311,6 +317,7 @@ async def run_capture():
                 protected_names=protected_names,
             )
         except consultation.ConsultationValidationError as repair_error:
+            _dump_raw(repair_out.decode("utf-8", "replace"))
             notify.notify(str(repair_error))
             return
     captured_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
