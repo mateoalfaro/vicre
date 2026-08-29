@@ -167,6 +167,131 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         notify_mock.assert_called_once()
 
 
+class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
+    """A provider-side stall surfaces as the OPENCODE_TIMEOUT timeout; the
+    same request bytes complete when relaunched, so one retry is attempted."""
+
+    def _patches(self, ocr_text=""):
+        return (
+            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
+            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
+            mock.patch.object(flow.routing, "ocr_image", return_value=ocr_text),
+            mock.patch.object(flow, "ensure_fuentes"),
+            mock.patch.object(flow, "ensure_config"),
+            mock.patch.object(flow, "_protected_names", return_value=("Productoria",)),
+            mock.patch.object(flow.state, "clear_state"),
+            mock.patch.object(flow.notify, "notify"),
+        )
+
+    async def test_stalled_main_pass_is_retried_once_and_delivers(self):
+        launches = []
+
+        async def launch(photo, request_prompt=None, expected_procedures=()):
+            launches.append(request_prompt)
+            return _Process()
+
+        async def communicate(_proc):
+            if len(launches) == 1:
+                raise flow._FlowError("OpenCode tardó demasiado")
+            return VALID_CAP1.encode(), b""
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(flow, "_launch_opencode", new=launch),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify as notify_mock,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        self.assertEqual(len(launches), 2)
+        self.assertIsNone(launches[0])
+        self.assertIsNone(launches[1])
+        write_state.assert_called_once()
+        notify_mock.assert_not_called()
+
+    async def test_stall_on_both_attempts_is_reported_without_saving(self):
+        launches = []
+
+        async def launch(photo, request_prompt=None, expected_procedures=()):
+            launches.append(request_prompt)
+            return _Process()
+
+        async def communicate(_proc):
+            raise flow._FlowError("OpenCode tardó demasiado")
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(flow, "_launch_opencode", new=launch),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify as notify_mock,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        self.assertEqual(len(launches), 2)
+        write_state.assert_not_called()
+        notify_mock.assert_called_once_with("OpenCode tardó demasiado")
+
+    async def test_stalled_repair_pass_is_retried_once_and_delivers(self):
+        invalid = "RESPUESTA_TIPO1: #1\nRESPUESTA_TIPO2: Lucas[8]"
+        launches = []
+        calls = 0
+
+        async def launch(photo, request_prompt=None, expected_procedures=()):
+            launches.append(request_prompt)
+            return _Process()
+
+        async def communicate(_proc):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return invalid.encode(), b""  # main pass: invalid output
+            if calls == 2:
+                raise flow._FlowError("OpenCode tardó demasiado")  # repair stalls
+            return VALID_CAP1.encode(), b""  # repair retry succeeds
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(flow, "_launch_opencode", new=launch),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify as notify_mock,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        self.assertEqual(len(launches), 3)
+        self.assertIsNone(launches[0])
+        self.assertIn("ERROR DE VALIDACIÓN", launches[1])
+        self.assertEqual(launches[1], launches[2])
+        write_state.assert_called_once()
+        notify_mock.assert_not_called()
+
+
 class AgentConfigTests(unittest.TestCase):
     def test_agent_config_locks_down_tools_and_allows_navigation(self):
         config = flow._agent_config()

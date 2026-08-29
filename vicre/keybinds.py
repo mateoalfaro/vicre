@@ -9,8 +9,25 @@ BASE = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/"
 TAILS = ["vicre0/", "vicre1/", "vicre2/"]
 NAMES = ["Vicre Capturar", "Vicre Pegar respuesta", "Vicre Pegar código"]
 BINDINGS = ["<Ctrl><Alt>i", "<Ctrl><Alt>o", "<Ctrl><Alt>p"]
-VICRE_BIN = os.environ.get("VICRE_BIN", "vicre")
-COMMANDS = [f"{VICRE_BIN} capture", f"{VICRE_BIN} paste1", f"{VICRE_BIN} paste2"]
+STABLE_BIN = "/run/current-system/sw/bin/vicre"
+
+
+def _vicre_bin():
+    """Prefer the current system generation over a pinned store path.
+
+    GNOME custom keybindings persist across ``nh os switch``, so a command
+    baked with a store path keeps pointing at the old generation after every
+    switch (the vicre-keybinds oneshot only runs at login).  The
+    ``/run/current-system`` symlink always tracks the active generation, so
+    the keybinds never go stale.  VICRE_BIN / PATH keep working when the
+    module is not installed system-wide.
+    """
+    if os.access(STABLE_BIN, os.X_OK):
+        return STABLE_BIN
+    return os.environ.get("VICRE_BIN", "vicre")
+
+
+COMMANDS = [f"{_vicre_bin()} capture", f"{_vicre_bin()} paste1", f"{_vicre_bin()} paste2"]
 
 
 def _run(*args):

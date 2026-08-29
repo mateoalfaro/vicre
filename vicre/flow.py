@@ -202,6 +202,24 @@ async def _communicate(proc):
             _active_proc = None
 
 
+async def _consulta(photo, request_prompt=None, expected_procedures=()):
+    """Run one consulta pass, retrying exactly once on a provider stall.
+
+    crof.ai occasionally opens a stream that never yields a byte; the request
+    is healthy when relaunched immediately (verified by replaying the same
+    request bytes).  The stall surfaces here as the OPENCODE_TIMEOUT
+    wall-clock timeout, so one relaunch converts a dead wait into a delivered
+    answer.  Only the stall retries: OSError (missing binary) propagates for
+    the caller to report.
+    """
+    proc = await _launch_opencode(photo, request_prompt, expected_procedures)
+    try:
+        return proc, await _communicate(proc)
+    except _FlowError:
+        proc = await _launch_opencode(photo, request_prompt, expected_procedures)
+        return proc, await _communicate(proc)
+
+
 def _protected_names():
     target = os.environ.get("VICRE_FUENTES_DIR") or FUENTES_LINK
     try:
@@ -257,14 +275,12 @@ async def run_capture():
         notify.notify("no se pudo preparar la configuración de OpenCode")
         return
     try:
-        proc = await _launch_opencode(
+        proc, (out, err) = await _consulta(
             photo, expected_procedures=expected_procedures
         )
     except OSError:
         notify.notify("no se pudo iniciar OpenCode")
         return
-    try:
-        out, err = await _communicate(proc)
     except _FlowError as error:
         notify.notify(str(error))
         return
@@ -303,7 +319,7 @@ async def run_capture():
             # One and only one focused repair is attempted.  A second invalid
             # result is discarded just like the first one.
             try:
-                repair_proc = await _launch_opencode(
+                repair_proc, (repair_out, repair_err) = await _consulta(
                     photo,
                     prompt.build_repair_prompt(
                         str(error), raw_output, expected_procedures
@@ -312,8 +328,6 @@ async def run_capture():
             except OSError:
                 notify.notify("no se pudo iniciar OpenCode para corregir")
                 return
-            try:
-                repair_out, repair_err = await _communicate(repair_proc)
             except _FlowError as repair_error:
                 notify.notify(str(repair_error))
                 return
