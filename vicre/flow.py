@@ -281,46 +281,64 @@ async def run_capture():
             protected_names=protected_names,
         )
     except consultation.ConsultationValidationError as error:
-        _dump_raw(raw_output)
-        # One and only one focused repair is attempted.  A second invalid
-        # result is discarded just like the first one.
-        try:
-            repair_proc = await _launch_opencode(
-                photo,
-                prompt.build_repair_prompt(
-                    str(error), raw_output, expected_procedures
-                ),
-            )
-        except OSError:
-            notify.notify("no se pudo iniciar OpenCode para corregir")
-            return
-        try:
-            repair_out, repair_err = await _communicate(repair_proc)
-        except _FlowError as repair_error:
-            notify.notify(str(repair_error))
-            return
-        if repair_proc.returncode != 0:
-            first = (
-                repair_err.decode("utf-8", "replace").strip().splitlines()[0]
-                if repair_err.strip()
-                else ""
-            )
-            notify.notify(
-                "OpenCode falló al corregir: " + first[:200]
-                if first
-                else "OpenCode falló al corregir"
-            )
-            return
-        try:
-            result = consultation.parse_and_validate(
-                repair_out.decode("utf-8", "replace"),
-                expected_procedures=expected_procedures,
-                protected_names=protected_names,
-            )
-        except consultation.ConsultationValidationError as repair_error:
-            _dump_raw(repair_out.decode("utf-8", "replace"))
-            notify.notify(str(repair_error))
-            return
+        # A response whose only defect is a PROCEDIMIENTO marker missing
+        # OCR-routed chapters is completed locally: the marker is Vicre
+        # metadata that never reaches the paste, so a full repair pass would
+        # add minutes without changing the answer.  Anything else keeps the
+        # one-repair fallback below.
+        fixed_output = consultation.complete_expected_procedures(
+            raw_output, error
+        )
+        if fixed_output is not None:
+            try:
+                result = consultation.parse_and_validate(
+                    fixed_output,
+                    expected_procedures=expected_procedures,
+                    protected_names=protected_names,
+                )
+            except consultation.ConsultationValidationError:
+                fixed_output = None
+        if fixed_output is None:
+            _dump_raw(raw_output)
+            # One and only one focused repair is attempted.  A second invalid
+            # result is discarded just like the first one.
+            try:
+                repair_proc = await _launch_opencode(
+                    photo,
+                    prompt.build_repair_prompt(
+                        str(error), raw_output, expected_procedures
+                    ),
+                )
+            except OSError:
+                notify.notify("no se pudo iniciar OpenCode para corregir")
+                return
+            try:
+                repair_out, repair_err = await _communicate(repair_proc)
+            except _FlowError as repair_error:
+                notify.notify(str(repair_error))
+                return
+            if repair_proc.returncode != 0:
+                first = (
+                    repair_err.decode("utf-8", "replace").strip().splitlines()[0]
+                    if repair_err.strip()
+                    else ""
+                )
+                notify.notify(
+                    "OpenCode falló al corregir: " + first[:200]
+                    if first
+                    else "OpenCode falló al corregir"
+                )
+                return
+            try:
+                result = consultation.parse_and_validate(
+                    repair_out.decode("utf-8", "replace"),
+                    expected_procedures=expected_procedures,
+                    protected_names=protected_names,
+                )
+            except consultation.ConsultationValidationError as repair_error:
+                _dump_raw(repair_out.decode("utf-8", "replace"))
+                notify.notify(str(repair_error))
+                return
     captured_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     try:
         state.write_state(

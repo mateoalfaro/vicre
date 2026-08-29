@@ -195,5 +195,62 @@ class AgentConfigTests(unittest.TestCase):
         self.assertIn("offset/limit", flow.AGENT_PROMPT)
 
 
+class FlowChapterFixupTests(unittest.IsolatedAsyncioTestCase):
+    def _patches(self, ocr_text=""):
+        return (
+            mock.patch.object(flow.portal, "take_screenshot", new=mock.AsyncMock(return_value="file:///capture.png")),
+            mock.patch.object(flow, "save_photo", return_value="/tmp/photo.png"),
+            mock.patch.object(flow.routing, "ocr_image", return_value=ocr_text),
+            mock.patch.object(flow, "ensure_fuentes"),
+            mock.patch.object(flow, "ensure_config"),
+            mock.patch.object(flow, "_protected_names", return_value=("Productoria",)),
+            mock.patch.object(flow.state, "clear_state"),
+            mock.patch.object(flow.notify, "notify"),
+        )
+
+    async def test_missing_chapter_marker_is_fixed_without_repair(self):
+        missing_cap1 = (
+            "RESPUESTA_TIPO1:\n"
+            "#1: 7\n"
+            "RESPUESTA_TIPO2:\n"
+            "Productoria[{2, n, 1 + 2/i}, 5]\n"
+            "PROCEDIMIENTO: cap2\n"
+        )
+
+        processes = [_Process()]
+
+        async def launch(photo, request_prompt=None, expected_procedures=()):
+            if request_prompt is not None:
+                raise AssertionError("chapter-only fixes must not launch a repair")
+            return processes.pop(0)
+
+        async def communicate(_proc):
+            return missing_cap1.encode(), b""
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches(
+            ocr_text="programa recursivo de pila Fibonacci"
+        )
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(flow, "_launch_opencode", new=launch),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        write_state.assert_called_once()
+        self.assertEqual(
+            write_state.call_args.kwargs["procedures"], ("cap2", "cap1")
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

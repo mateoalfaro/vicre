@@ -18,9 +18,16 @@ M2 = "RESPUESTA_TIPO2"
 class ConsultationValidationError(ValueError):
     """A model response was not safe or complete enough to persist."""
 
-    def __init__(self, message: str, *, errors: Iterable[str] = ()):
+    def __init__(
+        self,
+        message: str,
+        *,
+        errors: Iterable[str] = (),
+        missing_expected: Iterable[str] = (),
+    ):
         super().__init__(message)
         self.errors = tuple(errors) or (message,)
+        self.missing_expected = tuple(missing_expected)
 
 
 # Short alias for callers that prefer the general name at this seam.
@@ -401,11 +408,57 @@ def parse_and_validate(
                 f"falta capítulo esperado: {procedure_id}"
                 for procedure_id in missing_expected
             ),
+            missing_expected=missing_expected,
         )
     tipo2 = _strip_one_code_fence(output[second.end():marker.start()])
     _validate_code(tipo2, procedures)
     _validate_protected(tipo2, protected_names)
     return ConsultationResult(tipo1=tipo1, tipo2=tipo2, procedures=procedures)
+
+
+def complete_expected_procedures(
+    output: str,
+    error: ConsultationValidationError,
+) -> str | None:
+    """Complete the PROCEDIMIENTO marker with the chapters the error reports.
+
+    The marker is Vicre metadata (it never reaches the paste), so a response
+    whose only validation defect is missing expected chapters is repaired
+    locally instead of spending a full model pass.  Returns the corrected
+    output, or ``None`` when ``error`` is not exclusively a
+    missing-expected-chapters error or the marker cannot be completed safely;
+    callers then fall back to the focused repair pass.
+    """
+
+    missing = tuple(getattr(error, "missing_expected", ()))
+    if not missing:
+        return None
+    if any(
+        not message.startswith("falta capítulo esperado: ")
+        for message in error.errors
+    ):
+        return None
+    normalized = output.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
+    header = _SECTION_RE.search(normalized)
+    if not header:
+        return None
+    normalized = normalized[header.start():]
+    markers = list(_PROCEDURE_RE.finditer(normalized))
+    if len(markers) != 1:
+        return None
+    marker = markers[0]
+    try:
+        declared = _procedure_ids(marker.group(1))
+    except ConsultationValidationError:
+        return None
+    completed = declared + tuple(
+        procedure_id for procedure_id in missing if procedure_id not in declared
+    )
+    return (
+        normalized[:marker.start(1)]
+        + ", ".join(completed)
+        + normalized[marker.end(1):]
+    )
 
 
 def parse_output(

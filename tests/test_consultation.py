@@ -227,5 +227,45 @@ class CompatibilityTests(unittest.TestCase):
         )
 
 
+class CompleteExpectedProceduresTests(unittest.TestCase):
+    def test_missing_chapter_error_is_completed_locally(self):
+        output = _output(procedures="cap2")
+        with self.assertRaises(ConsultationValidationError) as ctx:
+            parse_and_validate(output, expected_procedures="cap1")
+
+        fixed = consultation.complete_expected_procedures(output, ctx.exception)
+
+        self.assertIsNotNone(fixed)
+        self.assertIn("PROCEDIMIENTO: cap2, cap1", fixed)
+        result = parse_and_validate(fixed, expected_procedures="cap1")
+        self.assertEqual(result.procedures, ("cap2", "cap1"))
+
+    def test_other_validation_errors_return_none(self):
+        output = _output(procedures="cap9")
+        with self.assertRaises(ConsultationValidationError) as ctx:
+            parse_and_validate(output, expected_procedures="cap1")
+
+        self.assertIsNone(
+            consultation.complete_expected_procedures(output, ctx.exception)
+        )
+
+    def test_plain_validation_errors_return_none(self):
+        output = _output()
+        error = ConsultationValidationError("respuesta tipo 1 vacía")
+
+        self.assertIsNone(
+            consultation.complete_expected_procedures(output, error)
+        )
+
+    def test_duplicated_sections_return_none(self):
+        output = _output() + _output()
+        with self.assertRaises(ConsultationValidationError) as ctx:
+            parse_and_validate(output, expected_procedures="cap1")
+
+        self.assertIsNone(
+            consultation.complete_expected_procedures(output, ctx.exception)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
