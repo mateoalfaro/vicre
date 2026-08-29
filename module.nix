@@ -29,7 +29,7 @@ in
     variant = lib.mkOption {
       type = lib.types.str;
       default = "max";
-      description = "Reasoning variant passed to opencode run --variant.";
+      description = "Reasoning variant joined into --model as provider/model#variant for opencode2 run.";
     };
     systemd = {
       enable = lib.mkOption {

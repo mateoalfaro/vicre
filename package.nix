@@ -2,7 +2,10 @@
   lib,
   python3Packages,
   makeWrapper,
-  opencode,
+  # The opencode2 CLI used for consultas. The flake pins it from the
+  # llm-agents input; the NixOS module default falls back to the system
+  # profile, which provides opencode2 itself.
+  opencode2 ? null,
   tesseract,
   ydotool,
   libnotify,
@@ -36,6 +39,15 @@ let
       "spa"
     ];
   };
+  binPaths =
+    lib.optionals (opencode2 != null) [ opencode2 ]
+    ++ [
+      tesseractCourse
+      ydotool
+      libnotify
+      glib
+      wl-clipboard
+    ];
 in
 python3Packages.buildPythonApplication {
   pname = "vicre";
@@ -68,14 +80,7 @@ python3Packages.buildPythonApplication {
       --prefix PYTHONPATH : "$site" \
       --set VICRE_FUENTES_DIR "$out/share/vicre/fuentes" \
       --set VICRE_BIN "$out/bin/vicre" \
-      --prefix PATH : "${lib.makeBinPath [
-        opencode
-        tesseractCourse
-        ydotool
-        libnotify
-        glib
-        wl-clipboard
-      ]}" \
+      --prefix PATH : "${lib.makeBinPath binPaths}" \
       --add-flags "-m vicre.__main__"
 
     mkdir -p "$out/share/vicre"

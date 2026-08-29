@@ -169,10 +169,11 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
         await _wait_proc(prev)
     env = os.environ.copy()
     env["PWD"] = HOME_DIR
+    model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(
-        "opencode", "run",
+        "opencode2", "run",
         request_prompt or prompt.build_prompt(expected_procedures), "-f", photo,
-        "--agent", "vicre", "--model", MODEL, "--variant", VARIANT,
+        "--agent", "vicre", "--model", model,
         cwd=HOME_DIR,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
