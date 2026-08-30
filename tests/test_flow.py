@@ -166,6 +166,84 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         write_state.assert_not_called()
         notify_mock.assert_called_once()
 
+    async def test_main_prompt_carries_photo_path(self):
+        """The photo path must reach the prompt builder (agy reads the image
+        by path; there is no attachment flag)."""
+
+        proc = _Process()
+        exec_calls = []
+
+        async def fake_exec(*args, **kwargs):
+            exec_calls.append((args, kwargs))
+            return proc
+
+        async def communicate(_proc):
+            return VALID_CAP1.encode(), b""
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(
+                flow.asyncio,
+                "create_subprocess_exec",
+                new=mock.AsyncMock(side_effect=fake_exec),
+            ),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        # agy -p "<prompt con foto>" --model <modelo>
+        args = exec_calls[0][0]
+        self.assertEqual(args[0], "agy")
+        self.assertEqual(args[1], "-p")
+        self.assertIn("La imagen en /tmp/photo.png", args[2])
+        self.assertIn("--model", args)
+        write_state.assert_called_once()
+
+    async def test_repair_prompt_carries_photo_path(self):
+        invalid = "RESPUESTA_TIPO1: #1\nRESPUESTA_TIPO2: Lucas[8]"
+        processes = [_Process(), _Process()]
+        repair_args = []
+
+        async def launch(photo, request_prompt=None, expected_procedures=()):
+            repair_args.append((request_prompt, photo))
+            return processes.pop(0)
+
+        async def communicate(_proc):
+            if len(repair_args) == 1:
+                return invalid.encode(), b""
+            return VALID_CAP1.encode(), b""
+
+        screenshots, save_photo, ocr, fuentes, config, protected, clear, notify = self._patches()
+        with (
+            screenshots,
+            save_photo,
+            ocr,
+            fuentes,
+            config,
+            protected,
+            clear,
+            mock.patch.object(flow, "_launch_opencode", new=launch),
+            mock.patch.object(flow, "_communicate", new=communicate),
+            mock.patch.object(flow.state, "write_state") as write_state,
+            notify,
+        ):
+            flow._active_proc = None
+            await flow.run_capture()
+
+        repair_prompt, repair_photo = repair_args[1]
+        self.assertEqual(repair_photo, "/tmp/photo.png")
+        self.assertIn("La imagen en /tmp/photo.png", repair_prompt)
+
 
 class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
     """A provider-side stall surfaces as the OPENCODE_TIMEOUT timeout; the
@@ -293,14 +371,17 @@ class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
 
 
 class AgentConfigTests(unittest.TestCase):
-    def test_agent_config_locks_down_tools_and_allows_navigation(self):
-        config = flow._agent_config()
+    def test_agent_prompt_contract_is_self_contained(self):
+        """agy has no separate agent config: the behavioral rules must live
+        in the single user prompt, so the prompt itself enforces the
+        navigation-only, no-shell/no-subagent policy."""
 
-        self.assertIn('"steps": 16', config)
-        self.assertIn("cuadernillo maestro", config)
-        self.assertIn('"bash": "deny"', config)
-        self.assertIn('"read": "allow"', config)
-        self.assertIn('"grep": "allow"', config)
+        prompt = flow.prompt.build_prompt(())
+        self.assertIn("grep y read", prompt)
+        self.assertIn("No uses subagentes", prompt)
+        self.assertIn("ejecutes comandos de shell", prompt)
+        self.assertIn("RESPUESTA_TIPO1:", prompt)
+        self.assertIn("PROCEDIMIENTO: capN[, capN...]", prompt)
 
     def test_agent_prompt_mentions_index_when_available(self):
         import os
@@ -312,12 +393,12 @@ class AgentConfigTests(unittest.TestCase):
             with mock.patch.dict(
                 "os.environ", {"VICRE_FUENTES_DIR": fuentes}
             ):
-                prompt = flow._agent_prompt()
+                prompt = flow.prompt.build_prompt(())
 
         self.assertIn("INDICE.md", prompt)
 
     def test_agent_prompt_warns_against_whole_file_reads(self):
-        self.assertIn("offset/limit", flow.AGENT_PROMPT)
+        self.assertIn("offset/limit", flow.prompt.build_prompt(()))
 
 
 class FlowChapterFixupTests(unittest.IsolatedAsyncioTestCase):

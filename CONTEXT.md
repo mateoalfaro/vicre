@@ -1,6 +1,6 @@
 # Vicre
 
-Servicio de usuario que captura la pantalla, consulta a OpenCode con las fuentes del curso y escribe la respuesta directamente donde esté escribiendo el usuario.
+Servicio de usuario que captura la pantalla, consulta al agente Gemini (CLI `agy`, antigravity) con las fuentes del curso y escribe la respuesta directamente donde esté escribiendo el usuario.
 
 ## Language
 
@@ -17,7 +17,7 @@ Los tres atajos globales: **Capturar** (`ctrl+alt+i`, inicia la Consulta), **Peg
 _Avoid_: comandos, hotkeys
 
 **Consulta**:
-El ciclo completo: captura → prompt fijo + imagen enviados a OpenCode → respuesta parseada y almacenada en memoria.
+El ciclo completo: captura → prompt fijo + imagen referenciada por ruta enviados al agente Gemini (`agy -p`) → respuesta parseada y almacenada en memoria.
 _Avoid_: request, pregunta
 
 **Respuesta Tipo 1**:
@@ -33,9 +33,9 @@ El cuadernillo maestro del curso (`Ejercicios_y_Respuestas.pdf`, 461 páginas,
 1712 ejercicios resueltos) extraído en tiempo de compilación a chunks de texto
 navegables (`INDICE.md`, un archivo por parte+capítulo, catálogo de funciones
 VilCretas) que viajan dentro del paquete de Vicre y se exponen en
-`~/.vicre/fuentes` para que OpenCode los consulte con grep/read.
+`~/.vicre/fuentes` para que el agente Gemini los consulte con grep/read.
 _Avoid_: biblioteca, documentos, tarjetas
 
 **Directorio de trabajo**:
-`~/.vicre`: contiene `photos/`, `fuentes/` y es el cwd desde el que corre OpenCode.
+`~/.vicre`: contiene `photos/`, `fuentes/` y es el cwd desde el que corre el agente (`agy`).
 _Avoid_: home de vicre, data dir

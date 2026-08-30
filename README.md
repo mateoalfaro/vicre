@@ -1,12 +1,12 @@
 # Vicre
 
-Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta a OpenCode usando el cuadernillo maestro del curso (`fuentes/Ejercicios_y_Respuestas.pdf`, extraído a Markdown navegable en tiempo de compilación), y luego escribe la respuesta directamente en la ventana enfocada.
+Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta al agente Gemini (CLI `agy`, antigravity) usando el cuadernillo maestro del curso (`fuentes/Ejercicios_y_Respuestas.pdf`, extraído a Markdown navegable en tiempo de compilación), y luego escribe la respuesta directamente en la ventana enfocada.
 
 ## Atajos
 
 | Atajo | Acción |
 |---|---|
-| `ctrl+alt+i` | Captura toda la pantalla → consulta a OpenCode → guarda las dos respuestas |
+| `ctrl+alt+i` | Captura toda la pantalla → consulta a Gemini → guarda las dos respuestas |
 | `ctrl+alt+o` | Escribe la **Respuesta Tipo 1** (respuestas directas) donde esté escribiendo |
 | `ctrl+alt+p` | Escribe la **Respuesta Tipo 2** (código Wolfram de verificación) |
 
@@ -39,16 +39,16 @@ Y en algún módulo de la configuración:
     enable = true;
     user = "jafed";
     # programs.vicre.systemd.enable = false;  # opt out of the autostart services
-    # model = "opencode-go/glm-5.3-flash";   # vision model for the consulta (default)
-    # variant = "max";                       # reasoning effort for that model (low|high|max)
+    # model = "gemini-3.7-flash-high";        # Gemini model + effort tier (default)
+    # variant = "";                           # extra suffix (empty: agy uses the model's own tier)
   };
 }
 ```
 
-El modelo debe soportar imágenes; las credenciales del proveedor se leen
-del archivo de auth de OpenCode (`opencode auth login`). Para probar otro
-modelo sin tocar la configuración, usa `VICRE_MODEL` y `VICRE_VARIANT` en
-el entorno del daemon.
+El modelo debe soportar imágenes; la autenticación de `agy` se resuelve desde
+la sesión del usuario (el CLI de Gemini usa las credenciales de la cuenta
+activa). Para probar otro modelo sin tocar la configuración, usa
+`VICRE_MODEL` en el entorno del daemon.
 
 Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión** (necesario para el grupo `ydotool`). Los atajos se registran solos al iniciar la sesión gráfica.
 
@@ -62,8 +62,6 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 │   ├── ejercicios-capN.md / respuestas-capN.md / complementarios-capN.md / tipo-examen-capN.md
 │   ├── apendice-{a,b,c}.md
 │   └── funciones-vilcretas.txt   nombres protegidos del curso (validación)
-├── opencode.json         agente "vicre" (sin bash/subagentes/task)
-├── vicre-agent-prompt.md prompt del agente
 └── state.json            última respuesta parseada
 ```
 
@@ -73,6 +71,15 @@ a chunks de texto deterministas durante la compilación de Nix
 chunks con grep/read guiándose por `INDICE.md` (número de ejercicio
 `cap.sección.ejer`, categorías tipo examen, capítulo). Las preguntas, claves
 y rúbricas de evaluación viven en el cuadernillo del curso, no en este repo.
+
+## Consulta (Gemini CLI)
+
+La consulta corre `agy -p "<prompt>" --model <modelo>` (antigravity-cli) desde
+`~/.vicre`. `agy` no tiene una bandera para adjuntar archivos a `-p`: la
+captura se referencia por ruta absoluta en el prompt y el agente la lee con sus
+propias herramientas, igual que navega `fuentes/`. Un fallo del agente se
+reintenta una vez; la validación es la misma de siempre (consulta
+`consultation.py`).
 
 ## CLI
 

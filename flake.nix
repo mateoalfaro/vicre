@@ -1,8 +1,9 @@
 {
-  description = "Vicre - screen-capture assistant that queries OpenCode using the course master workbook";
+  description = "Vicre - screen-capture assistant that queries the Gemini CLI (antigravity) using the course master workbook";
 
-  # Prebuilt closures for the llm-agents inputs (opencode2 and friends).
-  # Nix asks for one-time confirmation unless this flake is already trusted.
+  # Prebuilt closures for the llm-agents inputs (antigravity-cli and
+  # friends). Nix asks for one-time confirmation unless this flake is already
+  # trusted.
   nixConfig = {
     extra-substituters = [ "https://cache.numtide.com" ];
     extra-trusted-public-keys = [
@@ -26,9 +27,11 @@
       }) systems);
     in
     {
+      # Note: antigravity-cli (agy) comes from llm-agents (numtide cache), not
+      # from nixpkgs, so no unfree-allowance is needed to build vicre.
       packages = forAllSystems (system: {
         vicre = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
-          opencode2 = llm-agents.packages.${system}.opencode2;
+          antigravity-cli = llm-agents.packages.${system}.antigravity-cli;
         };
         default = self.packages.${system}.vicre;
       });

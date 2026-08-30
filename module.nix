@@ -23,13 +23,13 @@ in
     };
     model = lib.mkOption {
       type = lib.types.str;
-      default = "opencode-go/glm-5.3-flash";
-      description = "Model (provider/model) that vicre uses for the consulta. Must support image input.";
+      default = "gemini-3.7-flash-high";
+      description = "gemini model (with effort tier) that vicre uses for the consulta. Must support image input.";
     };
     variant = lib.mkOption {
       type = lib.types.str;
-      default = "max";
-      description = "Reasoning variant joined into --model as provider/model#variant for opencode2 run.";
+      default = "";
+      description = "Reasoning variant joined into --model as provider/model#variant for agy run (antigravity CLI). Left empty for agy's native effort suffixes (-high/-medium/-low).";
     };
     systemd = {
       enable = lib.mkOption {

@@ -2,10 +2,10 @@
   lib,
   python3Packages,
   makeWrapper,
-  # The opencode2 CLI used for consultas. The flake pins it from the
-  # llm-agents input; the NixOS module default falls back to the system
-  # profile, which provides opencode2 itself.
-  opencode2 ? null,
+  # The agy CLI (antigravity-cli) used for consultas. The flake pins it from
+  # the llm-agents input; the package builds without it (no agy on PATH) as
+  # a fallback for standalone builds.
+  antigravity-cli ? null,
   tesseract,
   ydotool,
   libnotify,
@@ -40,7 +40,7 @@ let
     ];
   };
   binPaths =
-    lib.optionals (opencode2 != null) [ opencode2 ]
+    lib.optionals (antigravity-cli != null) [ antigravity-cli ]
     ++ [
       tesseractCourse
       ydotool
@@ -90,7 +90,7 @@ python3Packages.buildPythonApplication {
   '';
 
   meta = {
-    description = "Screen-capture assistant that queries OpenCode using compact runtime procedure cards";
+    description = "Screen-capture assistant that queries the Gemini CLI (antigravity) using compact runtime procedure cards";
     mainProgram = "vicre";
     platforms = lib.platforms.linux;
   };
