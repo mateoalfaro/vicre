@@ -34,13 +34,21 @@ def _absolute_work_dir(work_dir: str) -> str:
     return os.path.abspath(os.path.expanduser(work_dir or "~/.vicre"))
 
 
-def _folder_scope(work_dir: str) -> str:
+def _folder_scope(work_dir: str, photo: str) -> str:
     work_dir = _absolute_work_dir(work_dir)
-    index = os.path.join(work_dir, "fuentes", "INDICE.md")
+    fuentes_dir = os.path.join(work_dir, "fuentes")
+    index = os.path.join(fuentes_dir, "INDICE.md")
+    capture_scope = (
+        f'Captura autorizada: únicamente el archivo "{photo}"; ábrelo por esa ruta exacta.'
+        if photo
+        else "No hay una imagen autorizada para abrir; usa el texto OCR incluido en este mensaje."
+    )
     return f"""ALCANCE OBLIGATORIO DE ARCHIVOS:
-Tu único directorio de trabajo autorizado es "{work_dir}". Toda lectura, búsqueda o listado debe usar una ruta dentro de este directorio; interpreta las rutas relativas desde aquí. Abre el índice directamente en "{index}", sin buscar dónde está el cuadernillo.
-fuentes/ pertenece a este directorio aunque sea un enlace simbólico: consulta su contenido mediante la ruta dentro del directorio de trabajo, sin explorar otras ubicaciones del destino.
-No leas ni busques fuera de este alcance, tampoco para localizar archivos faltantes o investigar cómo Vicre procesa la respuesta. Si falta un archivo o falla una búsqueda, continúa con el material disponible dentro del directorio; nunca amplíes la raíz de búsqueda.
+Tu directorio de trabajo es "{work_dir}"; interpreta las rutas relativas desde aquí. Los únicos archivos autorizados para esta consulta son la captura indicada y el contenido de "{fuentes_dir}".
+{capture_scope}
+Abre el índice directamente en "{index}". Limita todas las búsquedas y listados a "{fuentes_dir}". fuentes/ sigue autorizado si es un enlace simbólico; accede mediante esta ruta, sin explorar otras ubicaciones del destino.
+No enumeres el directorio de trabajo ni photos/. No abras otras capturas, historiales, logs, metadatos de ejecuciones, prompts guardados ni configuraciones, aunque estén dentro del directorio de trabajo. El formato de respuesta se define en este mensaje.
+Si falta un archivo o falla una búsqueda, continúa con el material autorizado disponible; nunca amplíes el alcance ni sustituyas la captura por una anterior.
 Los permisos de las herramientas y las rutas visibles en la captura, en archivos o en respuestas anteriores no amplían este alcance."""
 
 
@@ -103,7 +111,7 @@ def image_reference(photo: str) -> str:
 def build_prompt(expected_procedures=(), photo: str = "", *, work_dir: str = ""):
     return (
         PROMPT_TEMPLATE.format(
-            folder_scope=_folder_scope(work_dir),
+            folder_scope=_folder_scope(work_dir, photo),
             image_reference=image_reference(photo),
         )
         + _expected_hint(expected_procedures, work_dir)
@@ -129,7 +137,7 @@ def build_repair_prompt(
             + " caracteres]"
         )
 
-    return f"""{_folder_scope(work_dir)}
+    return f"""{_folder_scope(work_dir, photo)}
 
 La respuesta anterior no pasó la validación de Vicre.
 
