@@ -59,7 +59,7 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 ├── photos/               capturas PNG
 ├── fuentes/              symlink al cuadernillo extraído dentro del paquete de Nix
 │   ├── INDICE.md         índice de navegación (partes, capítulos, categorías)
-│   ├── ejercicios-capN.md / respuestas-capN.md / complementarios-capN.md / tipo-examen-capN.md
+│   ├── ejercicios-N.md / respuestas-N.md / complementarios-N.md / tipo-examen-N.md (N = 1…8)
 │   ├── apendice-{a,b,c}.md
 │   └── funciones-vilcretas.txt   nombres protegidos del curso (validación)
 └── state.json            última respuesta parseada

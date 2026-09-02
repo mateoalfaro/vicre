@@ -8,7 +8,7 @@ class PromptTests(unittest.TestCase):
         prompt = build_prompt(())
 
         self.assertIn("INDICE.md", prompt)
-        self.assertIn("tipo-examen-capN.md", prompt)
+        self.assertIn("tipo-examen-N.md", prompt)
         self.assertIn("RESPUESTA_TIPO1:", prompt)
         self.assertIn("RESPUESTA_TIPO2:", prompt)
         self.assertIn("PROCEDIMIENTO: capN[, capN...]", prompt)

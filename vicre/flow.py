@@ -96,7 +96,9 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(
         "agy", "-p",
-        request_prompt or prompt.build_prompt(expected_procedures, photo=photo),
+        request_prompt or prompt.build_prompt(
+            expected_procedures, photo=photo, work_dir=HOME_DIR
+        ),
         "--model", model,
         # agy runs headless here (daemon has no TTY) and cannot prompt for
         # tool permissions; auto-approve so it can read the photo and
@@ -250,7 +252,8 @@ async def run_capture():
                 repair_proc, (repair_out, repair_err) = await _consulta(
                     photo,
                     prompt.build_repair_prompt(
-                        str(error), raw_output, expected_procedures, photo=photo
+                        str(error), raw_output, expected_procedures,
+                        photo=photo, work_dir=HOME_DIR,
                     ),
                 )
             except OSError:
