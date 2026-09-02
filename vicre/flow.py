@@ -11,7 +11,7 @@ PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
 OPENCODE_TIMEOUT = 300.0
-MODEL = os.environ.get("VICRE_MODEL", "gemini-3.8-flash-high")
+MODEL = os.environ.get("VICRE_MODEL", "gemini-3.7-flash-high")
 VARIANT = os.environ.get("VICRE_VARIANT", "")
 
 M1 = "RESPUESTA_TIPO1"

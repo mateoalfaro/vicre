@@ -39,7 +39,7 @@ Y en algún módulo de la configuración:
     enable = true;
     user = "jafed";
     # programs.vicre.systemd.enable = false;  # opt out of the autostart services
-    # model = "gemini-3.8-flash-high";        # Gemini model + effort tier (default)
+    # model = "gemini-3.7-flash-high";        # Gemini model + effort tier (default)
     # variant = "";                           # extra suffix (empty: agy uses the model's own tier)
   };
 }

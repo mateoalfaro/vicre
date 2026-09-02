@@ -23,7 +23,7 @@ in
     };
     model = lib.mkOption {
       type = lib.types.str;
-      default = "gemini-3.8-flash-high";
+      default = "gemini-3.7-flash-high";
       description = "gemini model (with effort tier) that vicre uses for the consulta. Must support image input.";
     };
     variant = lib.mkOption {
