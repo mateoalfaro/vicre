@@ -14,7 +14,10 @@ La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escrit
 
 ## Instalación (NixOS con flakes)
 
-Vicre solo se distribuye como flake. En tu `flake.nix`:
+Vicre solo se distribuye como flake y publica paquetes para
+`x86_64-linux` y `aarch64-linux`. El módulo elige automáticamente el paquete
+de la arquitectura del host, incluida la versión nativa de `agy`. En tu
+`flake.nix`:
 
 ```nix
 {
