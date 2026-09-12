@@ -11,7 +11,7 @@ HOME_DIR = os.path.expanduser("~/.vicre")
 PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
-OPENCODE_TIMEOUT = 300.0
+OPENCODE_TIMEOUT = 600.0
 MODEL = os.environ.get("VICRE_MODEL", "opencode-go/glm-5.3-flash")
 VARIANT = os.environ.get("VICRE_VARIANT", "max")
 
