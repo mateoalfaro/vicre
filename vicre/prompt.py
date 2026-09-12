@@ -5,15 +5,15 @@ import os
 from vicre.consultation import CHAPTERS
 
 
-# The prompt is sent as a single user message to `agy -p`; there is no
-# separate agent system prompt, so every behavioral rule lives here.
+# The prompt is sent as a single user message to `opencode2 run`; there is no
+# separate Vicre system prompt, so every behavioral rule lives here.
 PROMPT_TEMPLATE = """{folder_scope}
 
 {image_reference} una o más preguntas de un examen de matemáticas discretas que se resuelven con Wolfram Mathematica y la biblioteca de Vilcretas.
 
 En fuentes/ está el cuadernillo maestro del curso ("Ejercicios y respuestas") dividido en archivos de texto: lee primero fuentes/INDICE.md; luego navega según cada pregunta. Para una pregunta de examen empieza por el archivo tipo-examen-N.md de su capítulo, donde N es solo el número (por ejemplo, cap3 corresponde a tipo-examen-3.md); reproduce el estilo del banco real. Consulta también complementarios-N.md (resueltos paso a paso). Localiza con grep los ejercicios resueltos análogos: números capítulo.sección.ejercicio (por ejemplo 3.4.12), nombres de comandos del curso (Productoria, RR, PruebaADA, CompLimit...) o palabras distintivas de la pregunta. Grep devuelve números de línea: usa read con offset/limit sobre ese rango, nunca leas archivos completos de una vez. apendice-b.md cataloga las funciones de VilCretas. No inventes material fuera del cuadernillo.
 
-Resuelve imitando EXACTAMENTE el procedimiento y la sintaxis Wolfram de esos ejercicios. Las funciones de VilCretas ya están cargadas: llámalas tal cual; nunca las redefinas con patrones como Productoria[x_] := ... . Administra tus pasos: si no localizas el ejercicio exacto, responde de todos modos con las tres secciones; nunca entregues un resumen del trabajo. No uses subagentes ni ejecutes comandos de shell: navega fuentes/ únicamente con grep y read, y responde directamente tú.
+Resuelve imitando EXACTAMENTE el procedimiento y la sintaxis Wolfram de esos ejercicios. Las funciones de VilCretas ya están cargadas: llámalas tal cual; nunca las redefinas con patrones como Productoria[x_] := ... . Administra tus pasos: si no localizas el ejercicio exacto, responde de todos modos con las tres secciones; nunca entregues un resumen del trabajo. Puedes usar subagentes, comandos de shell y las utilidades instaladas (Python 3, ImageMagick, GraphicsMagick y FFmpeg) cuando ayuden a interpretar la captura o resolver la tarea. Mantén esos recursos dentro del alcance de archivos autorizado; navega las fuentes con grep y read, y responde directamente tú.
 
 Identifica cada inciso visible y responde EXACTAMENTE con estas secciones y en este orden. No escribas texto antes, entre ni después salvo el marcador PROCEDIMIENTO final:
 
@@ -94,15 +94,12 @@ def _expected_hint(expected_procedures, work_dir: str) -> str:
 def image_reference(photo: str) -> str:
     """The Spanish phrase that tells the model where the screenshot lives.
 
-    agy (the Gemini CLI) has no flag to attach a file to a `-p` prompt, so
-    the photo is referenced by an absolute path inside the workspace and the
-    model reads it with its own tools (exactly like fuentes/). This keeps the
-    prompt modality-agnostic while still anchoring every sentence in the
-    image, as the previous "--f photo" flow did.
+    OpenCode 2 attaches the photo with ``--file``. Keeping its absolute path
+    in the prompt still anchors the scope rule to the exact capture file.
     """
 
     return (
-        f"La imagen en {photo} contiene"
+        f"La imagen adjunta en {photo} contiene"
         if photo
         else "El siguiente texto OCR de una captura de pantalla contiene"
     )

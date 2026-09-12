@@ -2,10 +2,13 @@
   lib,
   python3Packages,
   makeWrapper,
-  # The agy CLI (antigravity-cli) used for consultas. The flake pins it from
-  # the llm-agents input; the package builds without it (no agy on PATH) as
-  # a fallback for standalone builds.
-  antigravity-cli ? null,
+  # The OpenCode 2 CLI used for consultas. The flake pins it from
+  # the llm-agents input; the package builds without it (no OpenCode 2 on PATH)
+  # as a fallback for standalone builds.
+  opencode2 ? null,
+  imagemagick,
+  graphicsmagick,
+  ffmpeg,
   tesseract,
   ydotool,
   libnotify,
@@ -40,8 +43,12 @@ let
     ];
   };
   binPaths =
-    lib.optionals (antigravity-cli != null) [ antigravity-cli ]
+    lib.optionals (opencode2 != null) [ opencode2 ]
     ++ [
+      python
+      imagemagick
+      graphicsmagick
+      ffmpeg
       tesseractCourse
       ydotool
       libnotify
@@ -90,7 +97,7 @@ python3Packages.buildPythonApplication {
   '';
 
   meta = {
-    description = "Screen-capture assistant that queries the Gemini CLI (antigravity) using compact runtime procedure cards";
+    description = "Screen-capture assistant that queries OpenCode 2 using compact runtime procedure cards";
     mainProgram = "vicre";
     platforms = lib.platforms.linux;
   };

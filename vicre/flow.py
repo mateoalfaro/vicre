@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import os
 import shutil
 import urllib.parse
@@ -11,8 +12,8 @@ PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
 OPENCODE_TIMEOUT = 300.0
-MODEL = os.environ.get("VICRE_MODEL", "gemini-3.7-flash-high")
-VARIANT = os.environ.get("VICRE_VARIANT", "")
+MODEL = os.environ.get("VICRE_MODEL", "opencode-go/glm-5.3-flash")
+VARIANT = os.environ.get("VICRE_VARIANT", "max")
 
 M1 = "RESPUESTA_TIPO1"
 M2 = "RESPUESTA_TIPO2"
@@ -54,13 +55,56 @@ def ensure_fuentes():
     os.symlink(target, FUENTES_LINK)
 
 
+AGENT_CONFIG_NAME = "opencode.json"
+
+
+def _agent_config_path():
+    return os.path.join(HOME_DIR, AGENT_CONFIG_NAME)
+
+
+def _agent_config():
+    """Return the dedicated unrestricted OpenCode 2 agent configuration.
+
+    The behavioral prompt is sent with each request by ``prompt.py``.  This
+    file only selects the dedicated agent and enables its tools, keeping the
+    policy independent from the user's global OpenCode configuration.
+    """
+
+    return json.dumps(
+        {
+            "$schema": "https://opencode.ai/config.json",
+            "permission": "allow",
+            "agent": {
+                "vicre": {
+                    "description": "Consulta de vicre: imagen adjunta + cuadernillo maestro en fuentes/.",
+                    "mode": "primary",
+                    "temperature": 0,
+                    "steps": 16,
+                    "permission": "allow",
+                }
+            },
+        },
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
+
+
 def ensure_config():
-    # `agy` (the Gemini CLI) needs no per-agent configuration: it reads its
-    # own auth (ACL from the host session) and --model from the daemon env.
-    # In the old OpenCode flow this wrote an agent config + system prompt;
-    # that seam is gone, so ensure_config is kept as a no-op placeholder to
-    # preserve the flow's structure and its tests.
+    """Write the OpenCode 2 agent policy under the consulta workspace."""
+
     os.makedirs(HOME_DIR, exist_ok=True)
+    path = _agent_config_path()
+    content = _agent_config()
+    try:
+        with open(path, "r", encoding="utf-8") as config_file:
+            if config_file.read() == content:
+                return
+    except FileNotFoundError:
+        pass
+    temporary_path = path + ".tmp"
+    with open(temporary_path, "w", encoding="utf-8") as config_file:
+        config_file.write(content)
+    os.replace(temporary_path, path)
 
 
 def parse_output(out):
@@ -79,12 +123,11 @@ async def _wait_proc(proc):
 
 
 async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
-    """Launch one agy consulta pass against the given photo file.
+    """Launch one OpenCode 2 consulta pass against the given photo file.
 
     The agent picks the model via its own --model flag; VICRE_MODEL /
-    VICRE_VARIANT (module.nix) select the tier.  The prompt is delivered as
-    a single argument and the photo is referenced by path because `agy -p`
-    has no attachment flag; the model reads it with its tools from cwd.
+    VICRE_VARIANT (module.nix) select the model and variant.  OpenCode 2
+    accepts the prompt as a message and the capture through --file.
     """
     global _active_proc
     prev = _active_proc
@@ -95,15 +138,20 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     env["PWD"] = HOME_DIR
     model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(
-        "agy", "-p",
-        request_prompt or prompt.build_prompt(
+        "opencode2",
+        "run",
+        "--standalone",
+        "--agent",
+        "vicre",
+        "--model",
+        model,
+        "--file",
+        photo,
+        "--auto",
+        request_prompt
+        or prompt.build_prompt(
             expected_procedures, photo=photo, work_dir=HOME_DIR
         ),
-        "--model", model,
-        # agy runs headless here (daemon has no TTY) and cannot prompt for
-        # tool permissions; auto-approve so it can read the photo and
-        # fuentes/ instead of silently producing no output.
-        "--dangerously-skip-permissions",
         cwd=HOME_DIR,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

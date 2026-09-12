@@ -1,4 +1,6 @@
+import json
 import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -166,9 +168,8 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
         write_state.assert_not_called()
         notify_mock.assert_called_once()
 
-    async def test_main_prompt_carries_photo_path(self):
-        """The photo path must reach the prompt builder (agy reads the image
-        by path; there is no attachment flag)."""
+    async def test_opencode2_launch_uses_model_agent_and_attachment(self):
+        """OpenCode 2 receives the scoped prompt and capture attachment."""
 
         proc = _Process()
         exec_calls = []
@@ -187,6 +188,8 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
             ocr,
             fuentes,
             config,
+            mock.patch.object(flow, "MODEL", "opencode-go/glm-5.3-flash"),
+            mock.patch.object(flow, "VARIANT", "max"),
             protected,
             clear,
             mock.patch.object(
@@ -201,13 +204,65 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
             flow._active_proc = None
             await flow.run_capture()
 
-        # agy -p "<prompt con foto>" --model <modelo>
+        # opencode2 run --standalone --agent vicre --model <modelo>
+        #   --file <foto> --auto "<prompt con foto>"
         args = exec_calls[0][0]
-        self.assertEqual(args[0], "agy")
-        self.assertEqual(args[1], "-p")
-        self.assertIn("La imagen en /tmp/photo.png", args[2])
-        self.assertIn("--model", args)
+        self.assertEqual(args[:2], ("opencode2", "run"))
+        self.assertIn("--standalone", args)
+        self.assertEqual(args[args.index("--agent") + 1], "vicre")
+        self.assertEqual(
+            args[args.index("--model") + 1], "opencode-go/glm-5.3-flash#max"
+        )
+        self.assertEqual(args[args.index("--file") + 1], "/tmp/photo.png")
+        self.assertIn("--auto", args)
+        self.assertIn("La imagen adjunta en /tmp/photo.png", args[-1])
         write_state.assert_called_once()
+
+    async def test_opencode2_launch_joins_model_variant(self):
+        proc = _Process()
+        exec_calls = []
+
+        async def fake_exec(*args, **kwargs):
+            exec_calls.append((args, kwargs))
+            return proc
+
+        with (
+            mock.patch.object(
+                flow.asyncio,
+                "create_subprocess_exec",
+                new=mock.AsyncMock(side_effect=fake_exec),
+            ),
+            mock.patch.object(flow, "MODEL", "opencode-go/qwen3.7-plus"),
+            mock.patch.object(flow, "VARIANT", "max"),
+        ):
+            flow._active_proc = None
+            await flow._launch_opencode("/tmp/photo.png")
+
+        args = exec_calls[0][0]
+        self.assertEqual(args[args.index("--model") + 1], "opencode-go/qwen3.7-plus#max")
+
+    async def test_opencode2_launch_omits_empty_model_variant(self):
+        proc = _Process()
+        exec_calls = []
+
+        async def fake_exec(*args, **kwargs):
+            exec_calls.append((args, kwargs))
+            return proc
+
+        with (
+            mock.patch.object(
+                flow.asyncio,
+                "create_subprocess_exec",
+                new=mock.AsyncMock(side_effect=fake_exec),
+            ),
+            mock.patch.object(flow, "MODEL", "opencode-go/qwen3.7-plus"),
+            mock.patch.object(flow, "VARIANT", ""),
+        ):
+            flow._active_proc = None
+            await flow._launch_opencode("/tmp/photo.png")
+
+        args = exec_calls[0][0]
+        self.assertEqual(args[args.index("--model") + 1], "opencode-go/qwen3.7-plus")
 
     async def test_repair_prompt_carries_photo_path(self):
         invalid = "RESPUESTA_TIPO1: #1\nRESPUESTA_TIPO2: Lucas[8]"
@@ -242,7 +297,7 @@ class FlowRepairTests(unittest.IsolatedAsyncioTestCase):
 
         repair_prompt, repair_photo = repair_args[1]
         self.assertEqual(repair_photo, "/tmp/photo.png")
-        self.assertIn("La imagen en /tmp/photo.png", repair_prompt)
+        self.assertIn("La imagen adjunta en /tmp/photo.png", repair_prompt)
 
 
 class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
@@ -372,14 +427,15 @@ class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
 
 class AgentConfigTests(unittest.TestCase):
     def test_agent_prompt_contract_is_self_contained(self):
-        """agy has no separate agent config: the behavioral rules must live
-        in the single user prompt, so the prompt itself enforces the
-        navigation-only, no-shell/no-subagent policy."""
+        """The task scope and response rules remain in the per-request prompt."""
 
         prompt = flow.prompt.build_prompt(())
         self.assertIn("grep y read", prompt)
-        self.assertIn("No uses subagentes", prompt)
-        self.assertIn("ejecutes comandos de shell", prompt)
+        self.assertIn("Puedes usar subagentes", prompt)
+        self.assertIn("comandos de shell", prompt)
+        for utility in ("Python 3", "ImageMagick", "GraphicsMagick", "FFmpeg"):
+            self.assertIn(utility, prompt)
+        self.assertIn("Mantén esos recursos dentro del alcance", prompt)
         self.assertIn("RESPUESTA_TIPO1:", prompt)
         self.assertIn("PROCEDIMIENTO: capN[, capN...]", prompt)
 
@@ -399,6 +455,29 @@ class AgentConfigTests(unittest.TestCase):
 
     def test_agent_prompt_warns_against_whole_file_reads(self):
         self.assertIn("offset/limit", flow.prompt.build_prompt(()))
+
+    def test_agent_config_uses_unrestricted_opencode2_permissions(self):
+        config = json.loads(flow._agent_config())
+
+        agent = config["agent"]["vicre"]
+        self.assertEqual(config["permission"], "allow")
+        self.assertEqual(agent["mode"], "primary")
+        self.assertNotIn("prompt", agent)
+        self.assertEqual(agent["permission"], "allow")
+
+    def test_ensure_config_writes_under_current_workspace(self):
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.object(flow, "HOME_DIR", home):
+                flow.ensure_config()
+                path = os.path.join(home, "opencode.json")
+                with open(path, encoding="utf-8") as config_file:
+                    first = config_file.read()
+                flow.ensure_config()
+                with open(path, encoding="utf-8") as config_file:
+                    second = config_file.read()
+
+        self.assertEqual(first, second)
+        self.assertEqual(json.loads(first)["$schema"], "https://opencode.ai/config.json")
 
 
 class FlowChapterFixupTests(unittest.IsolatedAsyncioTestCase):

@@ -1,12 +1,12 @@
 # Vicre
 
-Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta al agente Gemini (CLI `agy`, antigravity) usando el cuadernillo maestro del curso (`fuentes/Ejercicios_y_Respuestas.pdf`, extraído a Markdown navegable en tiempo de compilación), y luego escribe la respuesta directamente en la ventana enfocada.
+Servicio de usuario para GNOME Wayland: capturas la pantalla con `ctrl+alt+i`, Vicre le pregunta al agente OpenCode 2 usando el cuadernillo maestro del curso (`fuentes/Ejercicios_y_Respuestas.pdf`, extraído a Markdown navegable en tiempo de compilación), y luego escribe la respuesta directamente en la ventana enfocada.
 
 ## Atajos
 
 | Atajo | Acción |
 |---|---|
-| `ctrl+alt+i` | Captura toda la pantalla → consulta a Gemini → guarda las dos respuestas |
+| `ctrl+alt+i` | Captura toda la pantalla → consulta a OpenCode 2 → guarda las dos respuestas |
 | `ctrl+alt+o` | Escribe la **Respuesta Tipo 1** (respuestas directas) donde esté escribiendo |
 | `ctrl+alt+p` | Escribe la **Respuesta Tipo 2** (código Wolfram de verificación) |
 
@@ -16,7 +16,7 @@ La captura usa el portal de screenshots (funciona en GNOME y wlroots), la escrit
 
 Vicre solo se distribuye como flake y publica paquetes para
 `x86_64-linux` y `aarch64-linux`. El módulo elige automáticamente el paquete
-de la arquitectura del host, incluida la versión nativa de `agy`. En tu
+de la arquitectura del host, incluida la versión nativa de `opencode2`. En tu
 `flake.nix`:
 
 ```nix
@@ -42,16 +42,17 @@ Y en algún módulo de la configuración:
     enable = true;
     user = "jafed";
     # programs.vicre.systemd.enable = false;  # opt out of the autostart services
-    # model = "gemini-3.7-flash-high";        # Gemini model + effort tier (default)
-    # variant = "";                           # extra suffix (empty: agy uses the model's own tier)
+    # model = "opencode-go/glm-5.3-flash";    # multimodal OpenCode Go model (default)
+    # variant = "max";                        # reasoning variant (default)
   };
 }
 ```
 
-El modelo debe soportar imágenes; la autenticación de `agy` se resuelve desde
-la sesión del usuario (el CLI de Gemini usa las credenciales de la cuenta
-activa). Para probar otro modelo sin tocar la configuración, usa
-`VICRE_MODEL` en el entorno del daemon.
+El modelo debe soportar imágenes; configura las credenciales del proveedor en
+OpenCode 2 (por ejemplo, inicia sesión con `opencode2 auth` o proporciona la
+variable que requiera el proveedor). Para probar otro modelo o variante sin
+tocar la configuración, usa `VICRE_MODEL` y `VICRE_VARIANT` en el entorno del
+daemon.
 
 Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión** (necesario para el grupo `ydotool`). Los atajos se registran solos al iniciar la sesión gráfica.
 
@@ -65,6 +66,7 @@ Luego `sudo nixos-rebuild switch --flake .#mihost` y **vuelve a iniciar sesión*
 │   ├── ejercicios-N.md / respuestas-N.md / complementarios-N.md / tipo-examen-N.md (N = 1…8)
 │   ├── apendice-{a,b,c}.md
 │   └── funciones-vilcretas.txt   nombres protegidos del curso (validación)
+├── opencode.json          agente "vicre" con permisos allow para la consulta
 └── state.json            última respuesta parseada
 ```
 
@@ -75,12 +77,15 @@ chunks con grep/read guiándose por `INDICE.md` (número de ejercicio
 `cap.sección.ejer`, categorías tipo examen, capítulo). Las preguntas, claves
 y rúbricas de evaluación viven en el cuadernillo del curso, no en este repo.
 
-## Consulta (Gemini CLI)
+## Consulta (OpenCode 2)
 
-La consulta corre `agy -p "<prompt>" --model <modelo>` (antigravity-cli) desde
-`~/.vicre`. `agy` no tiene una bandera para adjuntar archivos a `-p`: la
-captura se referencia por ruta absoluta en el prompt y el agente la lee con sus
-propias herramientas, igual que navega `fuentes/`. Un fallo del agente se
+La consulta corre `opencode2 run` desde `~/.vicre`, con el modelo en formato
+`provider/model#variant`, el agente dedicado `vicre` y la captura adjunta con
+`--file`. OpenCode 2 se ejecuta con un servidor privado para que su ciclo de
+vida quede ligado a la consulta; `--auto` aprueba automáticamente las
+herramientas del agente. El agente puede usar shell, subagentes y las
+utilidades instaladas (Python 3, ImageMagick, GraphicsMagick y FFmpeg) dentro
+del alcance de archivos de la consulta. Un agotamiento del tiempo de espera se
 reintenta una vez; la validación es la misma de siempre (consulta
 `consultation.py`).
 
