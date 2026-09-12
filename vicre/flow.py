@@ -79,7 +79,6 @@ def _agent_config():
                     "description": "Consulta de vicre: imagen adjunta + cuadernillo maestro en fuentes/.",
                     "mode": "primary",
                     "temperature": 0,
-                    "steps": 16,
                     "permission": "allow",
                 }
             },
