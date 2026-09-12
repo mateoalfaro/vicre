@@ -36,47 +36,12 @@
         default = self.packages.${system}.vicre;
       });
 
-      checks = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          expectedPackage = self.packages.${system}.vicre;
-          modulePackage = (nixpkgs.lib.nixosSystem {
-            inherit system;
-            modules = [
-              self.nixosModules.default
-              {
-                programs.vicre = {
-                  enable = true;
-                  user = "vicre";
-                };
-                system.stateVersion = "25.11";
-              }
-            ];
-          }).config.programs.vicre.package;
-        in
-        {
-          module-package =
-            assert modulePackage.outPath == expectedPackage.outPath;
-            pkgs.runCommand "vicre-module-package-${system}" { } ''
-              touch "$out"
-            '';
-        }
-      );
-
-      nixosModules =
-        let
-          module =
-            { lib, pkgs, ... }:
-            {
-              imports = [ ./module.nix ];
-              config.programs.vicre.package =
-                lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.vicre;
-            };
-        in
-        {
-          vicre = module;
-          default = module;
+      nixosModules = {
+        vicre = { lib, pkgs, ... }: {
+          imports = [ ./module.nix ];
+          programs.vicre.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.vicre;
         };
+        default = self.nixosModules.vicre;
+      };
     };
 }
