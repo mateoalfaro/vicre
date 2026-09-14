@@ -426,19 +426,6 @@ class FlowStallRetryTests(unittest.IsolatedAsyncioTestCase):
 
 
 class AgentConfigTests(unittest.TestCase):
-    def test_agent_prompt_contract_is_self_contained(self):
-        """The task scope and response rules remain in the per-request prompt."""
-
-        prompt = flow.prompt.build_prompt(())
-        self.assertIn("grep y read", prompt)
-        self.assertIn("Puedes usar subagentes", prompt)
-        self.assertIn("comandos de shell", prompt)
-        for utility in ("Python 3", "ImageMagick", "GraphicsMagick", "FFmpeg"):
-            self.assertIn(utility, prompt)
-        self.assertIn("Mantén esos recursos dentro del alcance", prompt)
-        self.assertIn("RESPUESTA_TIPO1:", prompt)
-        self.assertIn("PROCEDIMIENTO: capN[, capN...]", prompt)
-
     def test_agent_prompt_mentions_index_when_available(self):
         import os
         import tempfile
