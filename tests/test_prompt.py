@@ -16,6 +16,14 @@ class PromptTests(unittest.TestCase):
             self.assertIn(chapter, prompt)
         self.assertNotIn("RUTEO OCR", prompt)
 
+    def test_base_prompt_sets_time_limit_and_figure_protocol(self):
+        prompt = build_prompt(())
+
+        self.assertIn("LÍMITE DE TIEMPO", prompt)
+        self.assertIn("10 minutos", prompt)
+        self.assertIn("LECTURA DE FIGURAS", prompt)
+        self.assertIn("no repitas un análisis ya resuelto", prompt)
+
     def test_known_expected_chapters_are_explicitly_required(self):
         prompt = build_prompt(("cap3", "cap8"))
 
