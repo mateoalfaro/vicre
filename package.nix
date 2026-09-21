@@ -18,10 +18,10 @@
 
 let
   python = python3Packages.python;
-  pythonPath = lib.makeSearchPath "lib/${python.libPrefix}/site-packages" [
-    python
-    python3Packages.dbus-next
-  ];
+  runtimePython = python.withPackages (ps: [
+    ps.dbus-next
+    ps.pillow
+  ]);
   sourceFiles = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [
@@ -45,7 +45,7 @@ let
   binPaths =
     lib.optionals (opencode2 != null) [ opencode2 ]
     ++ [
-      python
+      runtimePython
       imagemagick
       graphicsmagick
       ffmpeg
@@ -82,13 +82,19 @@ python3Packages.buildPythonApplication {
     cp -r vicre "$site/"
 
     mkdir -p "$out/bin"
-    makeWrapper "${python.interpreter}" "$out/bin/vicre" \
-      --prefix PYTHONPATH : "${pythonPath}" \
+    makeWrapper "${runtimePython.interpreter}" "$out/bin/vicre" \
       --prefix PYTHONPATH : "$site" \
       --set VICRE_FUENTES_DIR "$out/share/vicre/fuentes" \
       --set VICRE_BIN "$out/bin/vicre" \
       --prefix PATH : "${lib.makeBinPath binPaths}" \
       --add-flags "-m vicre.__main__"
+
+    PYTHONPATH="$site" "${runtimePython.interpreter}" - <<'PY'
+    from PIL import Image
+
+    image = Image.new("RGB", (1, 1), "white")
+    assert image.getpixel((0, 0)) == (255, 255, 255)
+    PY
 
     mkdir -p "$out/share/vicre"
     mkdir -p "$out/share/vicre/fuentes"
