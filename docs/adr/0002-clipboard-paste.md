@@ -12,7 +12,7 @@ Paste through the Wayland clipboard instead of typing characters:
 1. Set the selection with `wl-copy` (wl-clipboard). It daemonizes after the compositor roundtrip and keeps serving the data, which works fine on GNOME — ADR 0001 only rejected wl-copy as a *keystroke* mechanism, not as a selection owner.
 2. Sleep a short, configurable interval (`VICRE_PASTE_DELAY`, default 0.35 s) so the physical chord is released before injection.
 3. Inject a single synthetic `ctrl+v` via `ydotool key 29:1 47:1 47:0 29:0`.
-4. If `wl-copy` is unavailable or the keystroke fails, fall back to the old `ydotool type --file` path with an explicit `--key-delay 25`.
+4. Fail loudly if `wl-copy` is missing, `wl-copy` exits non-zero, or the keystroke fails: the caller reports "no se pudo escribir la respuesta" instead of pasting corrupted text. The old `ydotool type --file` fallback was removed because it re-introduced the non-ASCII damage this decision exists to avoid.
 
 The receiving application does the text insertion itself, so any Unicode the model produced arrives intact, long texts paste instantly, and no per-character timing race exists.
 
@@ -20,4 +20,4 @@ The receiving application does the text insertion itself, so any Unicode the mod
 
 - Requires `wl-clipboard` on PATH (pulled in by the Vicre package) and a Wayland display in the daemon's environment — both are satisfied inside the graphical session target.
 - The Vicre response stays in the clipboard after pasting; a manual `ctrl+v` repeats it. Accepted: it doubles as a re-paste affordance.
-- The fallback typing path still mangles non-ASCII; it exists only for environments without wl-clipboard.
+- There is no typing fallback: without `wl-clipboard`, or if the `wl-copy`/keystroke step fails, the paste aborts with a notification.
