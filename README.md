@@ -105,3 +105,9 @@ vicre daemon         # corre el daemon (lo maneja systemd)
 - El portal captura todos los monitores en una sola imagen.
 - Una captura nueva cancela la consulta anterior en vuelo.
 - Ver `docs/adr/0001-gnome-compat-io-strategy.md` para por qué no usamos grim/wtype.
+
+## Windows (portable, experimental)
+
+`packaging/windows/build.ps1` builds a PyInstaller bundle (`dist\vicre\vicre.exe`, or a single file with `-OneFile`). It runs as a tray app with the same shortcuts (`ctrl+alt+i/o/p`), using `Pillow.ImageGrab` for the capture, clipboard + `SendInput ctrl+v` for pasting, and `RegisterHotKey` instead of GNOME keybindings. The `fuentes` are extracted at build time and bundled.
+
+Requirements at runtime: the OpenCode CLI (`opencode2.exe` or `opencode.exe`) next to `vicre.exe`, on `PATH`, or via `VICRE_OPENCODE_BIN`, with its auth configured. `tesseract` on `PATH` is optional (OCR routing hint). The Windows backends have not been run on a real Windows host yet.

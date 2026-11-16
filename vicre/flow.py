@@ -3,7 +3,9 @@ import datetime
 import json
 import os
 import shutil
+import sys
 import urllib.parse
+import urllib.request
 
 from vicre import consultation, notify, portal, prompt, routing, state
 
@@ -29,7 +31,7 @@ def save_photo(uri):
     os.makedirs(PHOTOS_DIR, exist_ok=True)
     parsed = urllib.parse.urlparse(uri)
     if parsed.scheme == "file":
-        src = urllib.parse.unquote(parsed.path)
+        src = urllib.request.url2pathname(parsed.path)
     elif not parsed.scheme:
         src = uri
     else:
@@ -44,7 +46,12 @@ def save_photo(uri):
 
 def ensure_fuentes():
     target = os.environ.get("VICRE_FUENTES_DIR")
+    if not target and getattr(sys, "frozen", False):
+        target = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)), "fuentes")
     if not target:
+        return
+    if sys.platform == "win32":
+        _ensure_fuentes_copy(target)
         return
     if os.path.islink(FUENTES_LINK):
         if os.readlink(FUENTES_LINK) == target:
@@ -53,6 +60,21 @@ def ensure_fuentes():
     elif os.path.exists(FUENTES_LINK):
         return
     os.symlink(target, FUENTES_LINK)
+
+
+def _ensure_fuentes_copy(target):
+    """Windows: symlinks need privileges, so keep a copy plus a source marker."""
+    marker = os.path.join(FUENTES_LINK, ".vicre-source")
+    try:
+        with open(marker, encoding="utf-8") as f:
+            if f.read() == target:
+                return
+    except OSError:
+        pass
+    shutil.rmtree(FUENTES_LINK, ignore_errors=True)
+    shutil.copytree(target, FUENTES_LINK)
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write(target)
 
 
 AGENT_CONFIG_NAME = "opencode.json"
@@ -121,6 +143,21 @@ async def _wait_proc(proc):
         await asyncio.wait_for(proc.wait(), 5)
 
 
+def _opencode_bin():
+    """VICRE_OPENCODE_BIN, else opencode2/opencode (also next to a frozen exe)."""
+    override = os.environ.get("VICRE_OPENCODE_BIN")
+    if override:
+        return override
+    extra = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else None
+    for name in ("opencode2", "opencode"):
+        found = shutil.which(name, path=None) or (
+            shutil.which(name, path=extra) if extra else None
+        )
+        if found:
+            return found
+    return "opencode2"
+
+
 async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     """Launch one OpenCode 2 consulta pass against the given photo file.
 
@@ -137,7 +174,7 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     env["PWD"] = HOME_DIR
     model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(
-        "opencode2",
+        _opencode_bin(),
         "run",
         "--standalone",
         "--agent",
