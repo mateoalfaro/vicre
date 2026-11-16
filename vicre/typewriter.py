@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -24,6 +25,10 @@ def paste_delay():
 
 
 def type_text(text):
+    if sys.platform == "win32":
+        from vicre import wintype
+        wintype.paste_text(text, paste_delay())
+        return
     socket_path = _socket()
     env = os.environ.copy()
     if socket_path:

@@ -2,11 +2,23 @@ import asyncio
 import datetime
 import os
 import shutil
+import sys
 import urllib.parse
+import urllib.request
 
 from vicre import consultation, notify, portal, prompt, routing, state
 
-HOME_DIR = os.path.expanduser("~/.vicre")
+def _home_dir():
+    """Working dir: VICRE_HOME, else ``vicre-data`` beside a frozen exe (USB), else ~/.vicre."""
+    override = os.environ.get("VICRE_HOME")
+    if override:
+        return os.path.abspath(override)
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "vicre-data")
+    return os.path.expanduser("~/.vicre")
+
+
+HOME_DIR = _home_dir()
 PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
@@ -28,7 +40,7 @@ def save_photo(uri):
     os.makedirs(PHOTOS_DIR, exist_ok=True)
     parsed = urllib.parse.urlparse(uri)
     if parsed.scheme == "file":
-        src = urllib.parse.unquote(parsed.path)
+        src = urllib.request.url2pathname(parsed.path)
     elif not parsed.scheme:
         src = uri
     else:
@@ -43,7 +55,12 @@ def save_photo(uri):
 
 def ensure_fuentes():
     target = os.environ.get("VICRE_FUENTES_DIR")
+    if not target and getattr(sys, "frozen", False):
+        target = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)), "fuentes")
     if not target:
+        return
+    if sys.platform == "win32":
+        _ensure_fuentes_copy(target)
         return
     if os.path.islink(FUENTES_LINK):
         if os.readlink(FUENTES_LINK) == target:
@@ -52,6 +69,26 @@ def ensure_fuentes():
     elif os.path.exists(FUENTES_LINK):
         return
     os.symlink(target, FUENTES_LINK)
+
+
+def _ensure_fuentes_copy(target):
+    """Windows: symlinks need privileges, so keep a copy plus a source marker."""
+    marker = os.path.join(FUENTES_LINK, ".vicre-source")
+    try:
+        index = os.stat(os.path.join(target, "INDICE.md"))
+        stamp = f"{index.st_size}:{int(index.st_mtime)}"
+    except OSError:
+        stamp = target
+    try:
+        with open(marker, encoding="utf-8") as f:
+            if f.read() == stamp:
+                return
+    except OSError:
+        pass
+    shutil.rmtree(FUENTES_LINK, ignore_errors=True)
+    shutil.copytree(target, FUENTES_LINK)
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write(stamp)
 
 
 def ensure_config():
@@ -78,6 +115,16 @@ async def _wait_proc(proc):
         await asyncio.wait_for(proc.wait(), 5)
 
 
+def _agy_bin():
+    """VICRE_AGY_BIN, else agy on PATH, else agy next to a frozen exe (USB)."""
+    override = os.environ.get("VICRE_AGY_BIN")
+    if override:
+        return override
+    extra = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else None
+    found = shutil.which("agy") or (shutil.which("agy", path=extra) if extra else None)
+    return found or "agy"
+
+
 async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     """Launch one agy consulta pass against the given photo file.
 
@@ -95,7 +142,7 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     env["PWD"] = HOME_DIR
     model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(
-        "agy", "-p",
+        _agy_bin(), "-p",
         request_prompt or prompt.build_prompt(
             expected_procedures, photo=photo, work_dir=HOME_DIR
         ),

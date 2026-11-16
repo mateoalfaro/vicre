@@ -1,8 +1,6 @@
 import asyncio
+import sys
 import uuid
-
-from dbus_next.aio import MessageBus
-from dbus_next import BusType, Variant
 
 PORTAL_BUS = "org.freedesktop.portal.Desktop"
 PORTAL_PATH = "/org/freedesktop/portal/desktop"
@@ -29,6 +27,7 @@ def _predicted_handle(token, unique_name):
 
 
 async def _request_uri(bus):
+    from dbus_next import Variant
     token = "vicre_" + uuid.uuid4().hex
     handle = _predicted_handle(token, bus.unique_name)
     portal_proxy = bus.get_proxy_object(PORTAL_BUS, PORTAL_PATH, SCREENSHOT_XML)
@@ -58,6 +57,11 @@ async def _request_uri(bus):
 
 
 async def take_screenshot(timeout=120.0):
+    if sys.platform == "win32":
+        from vicre import winshot
+        return await asyncio.to_thread(winshot.capture_uri)
+    from dbus_next.aio import MessageBus
+    from dbus_next import BusType
     bus = await MessageBus(bus_type=BusType.SESSION).connect()
     try:
         return await asyncio.wait_for(_request_uri(bus), timeout)
