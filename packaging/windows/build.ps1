@@ -10,4 +10,6 @@ pyinstaller $mode --noconsole --name vicre `
   --add-data "build\fuentes;fuentes" `
   --hidden-import vicre.winshot --hidden-import vicre.wintype --hidden-import vicre.winapp `
   packaging\windows\vicre_win.py
-Write-Host "Done. Copy dist\vicre to the USB drive and put opencode2.exe in it. Data and login live in vicre-data\ beside vicre.exe."
+$out = if ($OneFile) { "dist" } else { "dist\vicre" }
+Copy-Item packaging\windows\vicre.env "$out\vicre.env" -Force
+Write-Host "Done. Copy dist\vicre to the USB drive and put opencode2.exe in it. Edit vicre.env to change model/variant. Data and login live in vicre-data\ beside vicre.exe."

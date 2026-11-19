@@ -7,7 +7,7 @@ import sys
 import urllib.parse
 import urllib.request
 
-from vicre import consultation, notify, portal, prompt, routing, state
+from vicre import consultation, notify, portal, prompt, routing, settings, state
 
 def _home_dir():
     """Working dir: VICRE_HOME, else ``vicre-data`` beside a frozen exe (USB), else ~/.vicre."""
@@ -175,7 +175,7 @@ def agent_env(base=None):
 
 def _opencode_bin():
     """VICRE_OPENCODE_BIN, else opencode2/opencode (also next to a frozen exe)."""
-    override = os.environ.get("VICRE_OPENCODE_BIN")
+    override = settings.get("VICRE_OPENCODE_BIN")
     if override:
         return override
     extra = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else None
@@ -202,7 +202,9 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
         await _wait_proc(prev)
     env = agent_env()
     env["PWD"] = HOME_DIR
-    model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
+    model_name = settings.get("VICRE_MODEL", MODEL)
+    variant = settings.get("VICRE_VARIANT", VARIANT)
+    model = f"{model_name}#{variant}" if variant else model_name
     proc = await asyncio.create_subprocess_exec(
         _opencode_bin(),
         "run",

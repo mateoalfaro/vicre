@@ -4,6 +4,8 @@ import subprocess
 import sys
 import time
 
+from vicre import settings
+
 
 def _socket():
     env = os.environ.get("YDOTOOL_SOCKET")
@@ -18,7 +20,7 @@ def _socket():
 
 def paste_delay():
     try:
-        return float(os.environ.get("VICRE_PASTE_DELAY", "0.35"))
+        return float(settings.get("VICRE_PASTE_DELAY", "0.35"))
     except (TypeError, ValueError):
         return 0.35
 

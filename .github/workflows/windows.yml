@@ -1,0 +1,46 @@
+name: Windows portable build
+
+on:
+  push:
+    branches: [main, opencode, ccr-c991f6e6-3wk2sg]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest pillow
+      - run: python -m pytest -q tests
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build portable folder
+        shell: pwsh
+        run: ./packaging/windows/build.ps1
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/vicre -DestinationPath vicre-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vicre-windows
+          path: vicre-windows.zip
+      - name: Attach to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: vicre-windows.zip

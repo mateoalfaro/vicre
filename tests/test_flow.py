@@ -546,3 +546,25 @@ class AgentEnvTests(unittest.TestCase):
         with mock.patch.object(flow, "_portable", return_value=True):
             env = flow.agent_env({"VICRE_NO_XDG": "1"})
         self.assertNotIn("XDG_DATA_HOME", env)
+
+
+class SettingsFileTests(unittest.TestCase):
+    def test_parse_handles_comments_quotes_and_empty(self):
+        from vicre import settings
+        got = settings.parse('# c\nVICRE_MODEL="a/b"\nexport X=1\nVICRE_VARIANT=\nbad line\n')
+        self.assertEqual(got, {"VICRE_MODEL": "a/b", "X": "1", "VICRE_VARIANT": ""})
+
+    def test_env_beats_file_beats_default(self):
+        from vicre import settings
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "vicre.env")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("VICRE_MODEL=file/model\nVICRE_VARIANT=\n")
+            env = {"VICRE_CONFIG": path}
+            with mock.patch.dict(os.environ, env, clear=False):
+                os.environ.pop("VICRE_MODEL", None)
+                self.assertEqual(settings.get("VICRE_MODEL", "d"), "file/model")
+                self.assertEqual(settings.get("VICRE_VARIANT", "max"), "")
+                self.assertEqual(settings.get("OTHER", "d"), "d")
+                os.environ["VICRE_MODEL"] = "env/model"
+                self.assertEqual(settings.get("VICRE_MODEL", "d"), "env/model")

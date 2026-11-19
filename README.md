@@ -112,5 +112,7 @@ vicre daemon         # corre el daemon (lo maneja systemd)
 
 - **Data on the drive**: photos, state, the unpacked `fuentes` and OpenCode's own data live in `vicre-data\` next to `vicre.exe` (override with `VICRE_HOME`). OpenCode runs with `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_STATE_HOME`/`XDG_CACHE_HOME` pointing at `vicre-data\opencode\*`, so its login (`auth.json`) is stored on the USB. Set `VICRE_NO_XDG=1` to use the host profile instead.
 - **First login**: tray menu → "Iniciar sesión en OpenCode" (or `vicre.exe login`) opens a console running `opencode auth login`. After that, the same drive works on any PC. The credentials are plain text on the USB; treat the drive like a password.
+- **Model/variant without rebuilding**: edit `vicre.env` next to `vicre.exe` (`VICRE_MODEL=`, `VICRE_VARIANT=`, also `VICRE_PASTE_DELAY`, `VICRE_OPENCODE_BIN`). It is re-read on every capture, so no restart is needed; a real environment variable of the same name wins. `VICRE_CONFIG` points to another file.
+- **CI build**: the `Windows portable build` GitHub Actions workflow builds `vicre-windows.zip` on every push (Actions → run → Artifacts), and attaches it to the release when you push a `v*` tag. Unzip it onto the USB.
 - **OpenCode**: put `opencode2.exe` (or `opencode.exe`) in the same folder, or on `PATH`, or set `VICRE_OPENCODE_BIN`.
 - `tesseract` on `PATH` is optional (OCR routing hint). The Windows backends have not been run on a real Windows host yet, and it is not confirmed that OpenCode places `auth.json` under `XDG_DATA_HOME` on Windows.
