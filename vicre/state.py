@@ -1,7 +1,17 @@
 import json
 import os
+import sys
 
-STATE_FILE = os.path.expanduser("~/.vicre/state.json")
+
+def _home_dir():
+    if os.environ.get("VICRE_HOME"):
+        return os.path.abspath(os.environ["VICRE_HOME"])
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "vicre-data")
+    return os.path.expanduser("~/.vicre")
+
+
+STATE_FILE = os.path.join(_home_dir(), "state.json")
 
 
 def read_state():

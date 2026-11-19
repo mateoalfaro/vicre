@@ -106,8 +106,11 @@ vicre daemon         # corre el daemon (lo maneja systemd)
 - Una captura nueva cancela la consulta anterior en vuelo.
 - Ver `docs/adr/0001-gnome-compat-io-strategy.md` para por qué no usamos grim/wtype.
 
-## Windows (portable, experimental)
+## Windows (portable USB, experimental)
 
-`packaging/windows/build.ps1` builds a PyInstaller bundle (`dist\vicre\vicre.exe`, or a single file with `-OneFile`). It runs as a tray app with the same shortcuts (`ctrl+alt+i/o/p`), using `Pillow.ImageGrab` for the capture, clipboard + `SendInput ctrl+v` for pasting, and `RegisterHotKey` instead of GNOME keybindings. The `fuentes` are extracted at build time and bundled.
+`packaging/windows/build.ps1` builds a PyInstaller folder (`dist\vicre\`) to copy to a USB drive. It is a tray app with the same shortcuts (`ctrl+alt+i/o/p`): `Pillow.ImageGrab` for the capture, clipboard + `SendInput ctrl+v` for pasting, `RegisterHotKey` instead of GNOME keybindings. The `fuentes` are extracted at build time and bundled.
 
-Requirements at runtime: the OpenCode CLI (`opencode2.exe` or `opencode.exe`) next to `vicre.exe`, on `PATH`, or via `VICRE_OPENCODE_BIN`, with its auth configured. `tesseract` on `PATH` is optional (OCR routing hint). The Windows backends have not been run on a real Windows host yet.
+- **Data on the drive**: photos, state, the unpacked `fuentes` and OpenCode's own data live in `vicre-data\` next to `vicre.exe` (override with `VICRE_HOME`). OpenCode runs with `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_STATE_HOME`/`XDG_CACHE_HOME` pointing at `vicre-data\opencode\*`, so its login (`auth.json`) is stored on the USB. Set `VICRE_NO_XDG=1` to use the host profile instead.
+- **First login**: tray menu → "Iniciar sesión en OpenCode" (or `vicre.exe login`) opens a console running `opencode auth login`. After that, the same drive works on any PC. The credentials are plain text on the USB; treat the drive like a password.
+- **OpenCode**: put `opencode2.exe` (or `opencode.exe`) in the same folder, or on `PATH`, or set `VICRE_OPENCODE_BIN`.
+- `tesseract` on `PATH` is optional (OCR routing hint). The Windows backends have not been run on a real Windows host yet, and it is not confirmed that OpenCode places `auth.json` under `XDG_DATA_HOME` on Windows.

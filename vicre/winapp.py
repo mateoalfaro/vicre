@@ -79,6 +79,22 @@ def _hotkey_loop(ready):
         user32.UnregisterHotKey(None, ident)
 
 
+def login():
+    """Open a console running `opencode auth login` with the portable env."""
+    import subprocess
+
+    flow.ensure_config()
+    try:
+        subprocess.Popen(
+            [flow._opencode_bin(), "auth", "login"],
+            env=flow.agent_env(),
+            cwd=flow.HOME_DIR,
+            creationflags=0x00000010,  # CREATE_NEW_CONSOLE
+        )
+    except OSError:
+        notify("no se pudo iniciar OpenCode")
+
+
 def _quit():
     if _hotkey_thread_id:
         ctypes.windll.user32.PostThreadMessageW(_hotkey_thread_id, WM_QUIT, 0, 0)
@@ -95,7 +111,10 @@ def _make_icon():
     image = Image.new("RGBA", (64, 64), (30, 30, 30, 255))
     ImageDraw.Draw(image).polygon([(12, 14), (32, 52), (52, 14), (42, 14), (32, 34), (22, 14)],
                                   fill=(240, 240, 240, 255))
-    menu = pystray.Menu(pystray.MenuItem("Salir de Vicre", lambda *_: _quit()))
+    menu = pystray.Menu(
+        pystray.MenuItem("Iniciar sesión en OpenCode", lambda *_: login()),
+        pystray.MenuItem("Salir de Vicre", lambda *_: _quit()),
+    )
     return pystray.Icon("vicre", image, "Vicre (ctrl+alt+i/o/p)", menu)
 
 
@@ -109,6 +128,9 @@ def main():
     if sys.platform != "win32":
         print("vicre-win solo funciona en Windows", file=sys.stderr)
         return 1
+    if len(sys.argv) > 1 and sys.argv[1] == "login":
+        login()
+        return 0
     if not _single_instance():
         return 0
     _loop = asyncio.new_event_loop()

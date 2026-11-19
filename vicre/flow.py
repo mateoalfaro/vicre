@@ -9,7 +9,21 @@ import urllib.request
 
 from vicre import consultation, notify, portal, prompt, routing, state
 
-HOME_DIR = os.path.expanduser("~/.vicre")
+def _home_dir():
+    """Working dir: VICRE_HOME, else ``vicre-data`` beside a frozen exe (USB), else ~/.vicre."""
+    override = os.environ.get("VICRE_HOME")
+    if override:
+        return os.path.abspath(override)
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "vicre-data")
+    return os.path.expanduser("~/.vicre")
+
+
+def _portable():
+    return bool(os.environ.get("VICRE_HOME")) or getattr(sys, "frozen", False)
+
+
+HOME_DIR = _home_dir()
 PHOTOS_DIR = os.path.join(HOME_DIR, "photos")
 FUENTES_LINK = os.path.join(HOME_DIR, "fuentes")
 PORTAL_TIMEOUT = 120.0
@@ -114,6 +128,9 @@ def ensure_config():
     """Write the OpenCode 2 agent policy under the consulta workspace."""
 
     os.makedirs(HOME_DIR, exist_ok=True)
+    if _portable():
+        for sub in ("data", "config", "state", "cache"):
+            os.makedirs(os.path.join(HOME_DIR, "opencode", sub), exist_ok=True)
     path = _agent_config_path()
     content = _agent_config()
     try:
@@ -143,6 +160,19 @@ async def _wait_proc(proc):
         await asyncio.wait_for(proc.wait(), 5)
 
 
+def agent_env(base=None):
+    """Environment for OpenCode.  In portable mode (frozen exe / VICRE_HOME) its
+    XDG dirs live under ``<data>/opencode`` so auth.json, config and state stay
+    on the USB drive instead of the host's user profile."""
+    env = dict(os.environ if base is None else base)
+    if _portable() and not env.get("VICRE_NO_XDG"):
+        root = os.path.join(HOME_DIR, "opencode")
+        for var, sub in (("XDG_DATA_HOME", "data"), ("XDG_CONFIG_HOME", "config"),
+                         ("XDG_STATE_HOME", "state"), ("XDG_CACHE_HOME", "cache")):
+            env[var] = os.path.join(root, sub)
+    return env
+
+
 def _opencode_bin():
     """VICRE_OPENCODE_BIN, else opencode2/opencode (also next to a frozen exe)."""
     override = os.environ.get("VICRE_OPENCODE_BIN")
@@ -170,7 +200,7 @@ async def _launch_opencode(photo, request_prompt=None, expected_procedures=()):
     if prev is not None and prev.returncode is None:
         prev.terminate()
         await _wait_proc(prev)
-    env = os.environ.copy()
+    env = agent_env()
     env["PWD"] = HOME_DIR
     model = f"{MODEL}#{VARIANT}" if VARIANT else MODEL
     proc = await asyncio.create_subprocess_exec(

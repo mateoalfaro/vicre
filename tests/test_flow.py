@@ -526,3 +526,23 @@ class FlowChapterFixupTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AgentEnvTests(unittest.TestCase):
+    def test_portable_redirects_xdg_dirs_into_home(self):
+        with mock.patch.object(flow, "_portable", return_value=True), \
+                mock.patch.object(flow, "HOME_DIR", os.path.join("x", "data")):
+            env = flow.agent_env({"A": "1"})
+        self.assertEqual(env["XDG_DATA_HOME"], os.path.join("x", "data", "opencode", "data"))
+        self.assertEqual(env["XDG_CONFIG_HOME"], os.path.join("x", "data", "opencode", "config"))
+        self.assertEqual(env["A"], "1")
+
+    def test_not_portable_leaves_env_untouched(self):
+        with mock.patch.object(flow, "_portable", return_value=False):
+            env = flow.agent_env({"A": "1"})
+        self.assertEqual(env, {"A": "1"})
+
+    def test_opt_out(self):
+        with mock.patch.object(flow, "_portable", return_value=True):
+            env = flow.agent_env({"VICRE_NO_XDG": "1"})
+        self.assertNotIn("XDG_DATA_HOME", env)

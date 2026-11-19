@@ -10,4 +10,4 @@ pyinstaller $mode --noconsole --name vicre `
   --add-data "build\fuentes;fuentes" `
   --hidden-import vicre.winshot --hidden-import vicre.wintype --hidden-import vicre.winapp `
   packaging\windows\vicre_win.py
-Write-Host "Done. Put opencode2.exe next to vicre.exe (or set VICRE_OPENCODE_BIN)."
+Write-Host "Done. Copy dist\vicre to the USB drive and put opencode2.exe in it. Data and login live in vicre-data\ beside vicre.exe."
